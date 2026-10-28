@@ -235,9 +235,12 @@
         .badge-xmlonly { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 
         .pos-code { font-family: var(--font-mono); font-weight: 700; color: var(--primary); }
-        .hierarchy-cell { white-space: nowrap; }
-        .hierarchy-visual { font-family: var(--font-mono); color: #94a3b8; letter-spacing: 1px; }
-        .hierarchy-level { font-family: var(--font-mono); font-size: 0.72rem; color: var(--primary); background: var(--primary-light); padding: 0.05rem 0.3rem; border-radius: 4px; margin-left: 0.25rem; font-weight: 700; }
+        .tree-branch { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; }
+        .tree-branch .xml-input { width: auto; min-width: 70px; max-width: 260px; padding: 0.22rem 0.45rem; font-size: 0.8rem; }
+        .tree-branch .ancestor-input { background: #f8fafc; }
+        .row-ancestor td { background: #fbfcfe; border-top: 1px dashed #e2e8f0 !important; border-bottom: 1px dashed #e2e8f0 !important; }
+        .row-ancestor .xml-input { border-color: #e2e8f0; color: #64748b; font-style: italic; }
+        .move-select { font-size: 0.74rem; padding: 0.22rem 0.3rem; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--secondary); max-width: 180px; }
         .qual-code { font-family: var(--font-mono); background: #e2e8f0; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: 600; margin-left: 0.2rem; }
         .ctx-code { font-family: var(--font-mono); background: #dbeafe; color: #1e40af; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.71rem; margin-left: 0.2rem; }
 
@@ -429,7 +432,6 @@
                         <th style="width: 290px;">Signification Métier & Valeurs détectées</th>
                         <th style="width: 95px;">Fréquence</th>
                         <th style="width: 175px;">Statut de Couverture</th>
-                        <th style="width: 130px;">Hiérarchie</th>
                         <th>Chemin / Balise cible dans le XML de Référence (Éditable)</th>
                     </tr>
                 </thead>
@@ -1952,10 +1954,53 @@ function countPathLevels(path) {
     return trimmed.split('.').filter(p => p !== '').length;
 }
 
-function buildHierarchyVisual(path) {
-    const levels = countPathLevels(path);
-    if (levels <= 1) return '';
-    return '---|'.repeat(levels - 1);
+function splitXmlPath(path) {
+    return String(path || '').trim().split('.').filter(p => p !== '');
+}
+
+/**
+ * Construit l'ordre arborescent : pour chaque chemin de feuille, ses ancêtres
+ * (lignes mères) sont insérés une seule fois, avant leurs filles, triés par
+ * profondeur puis ordre alphabétique pour un rendu XML cohérent et stable.
+ */
+function buildTreeOrdering(fields) {
+    const ancestorPaths = new Map();
+    const leafEntries = [];
+
+    fields.forEach(item => {
+        const parts = splitXmlPath(item.targetXmlPath);
+        for (let i = 1; i <= parts.length; i++) {
+            const ancPath = parts.slice(0, i).join('.');
+            if (!ancestorPaths.has(ancPath)) {
+                ancestorPaths.set(ancPath, { path: ancPath, depth: i - 1, isLeafAnchor: false });
+            }
+        }
+        leafEntries.push({ item, parts });
+    });
+
+    const ordered = [];
+    const emitted = new Set();
+
+    function emitAncestors(parts) {
+        for (let i = 1; i < parts.length; i++) {
+            const ancPath = parts.slice(0, i).join('.');
+            if (!emitted.has(ancPath)) {
+                emitted.add(ancPath);
+                ordered.push(ancestorPaths.get(ancPath));
+            }
+        }
+    }
+
+    // Groupement : feuilles triées par chemin pour que les filles d'une même
+    // mère restent adjacentes, ancêtres émis juste avant leur première fille.
+    leafEntries
+        .sort((a, b) => a.item.targetXmlPath.localeCompare(b.item.targetXmlPath))
+        .forEach(entry => {
+            emitAncestors(entry.parts);
+            ordered.push({ item: entry.item, parts: entry.parts, isLeafRow: true });
+        });
+
+    return ordered;
 }
 
 function renderTable() {
@@ -1981,8 +2026,41 @@ function renderTable() {
                item.targetXmlPath.toLowerCase().includes(search);
     });
 
-    filtered.forEach(item => {
+    const ordered = buildTreeOrdering(filtered);
+
+    ordered.forEach(row => {
         const tr = document.createElement('tr');
+
+        // --- Ligne mère : vide, seul le chemin est affiché, chaque balise éditable ---
+        if (!row.isLeafRow) {
+            tr.classList.add('row-ancestor');
+            const parts = splitXmlPath(row.path);
+            const lastIdx = parts.length - 1;
+            const indent = (parts.length - 1) * 16;
+            const inputs = parts.map((p, i) =>
+                `<input type="text" class="xml-input ancestor-input" data-anc="${i}" data-path="${escapeHtml(row.path)}"
+                    value="${escapeHtml(p)}" ${i === lastIdx ? '' : 'style="color: #64748b;"'}>`
+            ).join('<span style="color: #cbd5e1; font-family: var(--font-mono);">.</span>');
+
+            tr.innerHTML = `
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style="font-size: 0.78rem; color: #94a3b8; font-family: var(--font-mono);">
+                    <em>Balise conteneur (mère)</em>
+                </td>
+                <td></td>
+                <td></td>
+                <td style="padding-left: ${indent}px;">
+                    <div class="tree-branch">${inputs}</div>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+            return;
+        }
+
+        // --- Ligne feuille : balise finale seule, décalée à son niveau ---
+        const item = row.item;
         if (!item.isCovered && !item.isXmlOnly) tr.classList.add('row-missing');
         if (item.isXmlOnly) tr.classList.add('row-xmlonly');
 
@@ -2003,9 +2081,25 @@ function renderTable() {
         const fileCount = item.filesSet.size;
         const pct = item.isXmlOnly ? '-' : `${fileCount}/${totalFiles} (${Math.round((fileCount / totalFiles) * 100)}%)`;
 
-        const fullDisplayPath = item.section === 'ENVELOPE'
-            ? item.targetXmlPath
-            : `${xmlContainers.rootName}.${xmlContainers.docName}.${item.targetXmlPath}`;
+        const parts = row.parts;
+        const leafName = parts[parts.length - 1];
+        const parentPath = parts.slice(0, -1).join('.');
+        const indent = (parts.length - 1) * 16;
+
+        // Options de relocalisation : tous les ancêtres connus du lot
+        const allAncestorPaths = new Set();
+        detectedFields.forEach(f => {
+            const fp = splitXmlPath(f.targetXmlPath);
+            for (let i = 1; i < fp.length; i++) allAncestorPaths.add(fp.slice(0, i).join('.'));
+        });
+        const moveSelect = item.isCovered || item.isXmlOnly
+            ? ''
+            : `<select class="move-select" data-id="${escapeHtml(item.id)}" title="Placer sous cette balise mère">
+                <option value="">— Déplacer sous… —</option>
+                ${Array.from(allAncestorPaths).sort().map(p =>
+                    `<option value="${escapeHtml(p)}" ${p === parentPath ? 'disabled' : ''}>${escapeHtml(p)}</option>`
+                ).join('')}
+              </select>`;
 
         tr.innerHTML = `
             <td style="text-align: center;">
@@ -2027,15 +2121,13 @@ function renderTable() {
                 ${pct}
             </td>
             <td>${statusBadge}</td>
-            <td class="hierarchy-cell" data-id="${escapeHtml(item.id)}">
-                <span class="hierarchy-visual">${escapeHtml(buildHierarchyVisual(item.targetXmlPath))}</span>
-                <span class="hierarchy-level">N${countPathLevels(item.targetXmlPath)}</span>
-            </td>
-            <td>
-                ${(item.isCovered || item.isXmlOnly)
-                    ? `<input type="text" class="xml-input" data-id="${escapeHtml(item.id)}" value="${escapeHtml(item.targetXmlPath)}" style="border-color: #bbf7d0; background: #f0fdf4;">`
-                    : `<input type="text" class="xml-input" data-id="${escapeHtml(item.id)}" value="${escapeHtml(item.targetXmlPath)}">`
-                }
+            <td style="padding-left: ${indent}px;">
+                <div class="tree-branch">
+                    <input type="text" class="xml-input leaf-input" data-id="${escapeHtml(item.id)}"
+                        value="${escapeHtml(leafName)}"
+                        ${(item.isCovered || item.isXmlOnly) ? 'style="border-color: #bbf7d0; background: #f0fdf4;"' : ''}>
+                    ${moveSelect}
+                </div>
             </td>
         `;
 
@@ -2050,20 +2142,18 @@ function renderTable() {
         });
     });
 
-    document.querySelectorAll('.xml-input').forEach(inp => {
+    // Édition d'une balise FEUILLE : reconstruit le chemin complet à partir du parent
+    document.querySelectorAll('.xml-input.leaf-input').forEach(inp => {
         inp.addEventListener('input', e => {
             const id = e.target.getAttribute('data-id');
             const field = detectedFields.find(f => f.id === id);
-            if (field) {
-                field.targetXmlPath = e.target.value.trim();
-                field.isCovered = existingXmlMap.has(field.targetXmlPath);
-                updateStats();
-                const hierCell = tableBody.querySelector(`.hierarchy-cell[data-id="${CSS.escape(id)}"]`);
-                if (hierCell) {
-                    hierCell.querySelector('.hierarchy-visual').textContent = buildHierarchyVisual(field.targetXmlPath);
-                    hierCell.querySelector('.hierarchy-level').textContent = 'N' + countPathLevels(field.targetXmlPath);
-                }
-            }
+            if (!field) return;
+            const parts = splitXmlPath(field.targetXmlPath);
+            const newName = e.target.value.trim().replace(/\./g, '');
+            parts[parts.length - 1] = newName;
+            field.targetXmlPath = parts.join('.');
+            field.isCovered = existingXmlMap.has(field.targetXmlPath);
+            updateStats();
         });
         inp.addEventListener('change', () => {
             const currentId = inp.getAttribute('data-id');
@@ -2071,6 +2161,51 @@ function renderTable() {
             if (f && !f.isXmlOnly && !f.isCovered) {
                 f.selectedForAdd = true;
             }
+            renderTable();
+        });
+    });
+
+    // Édition d'une balise MÈRE : renomme en cascade toutes les filles sous ce préfixe
+    document.querySelectorAll('.xml-input.ancestor-input').forEach(inp => {
+        inp.addEventListener('change', e => {
+            const ancIdx = parseInt(e.target.getAttribute('data-anc'), 10);
+            const ancPath = e.target.getAttribute('data-path');
+            const newName = e.target.value.trim().replace(/\./g, '');
+            if (!newName) { renderTable(); return; }
+
+            const ancParts = splitXmlPath(ancPath);
+            ancParts[ancIdx] = newName;
+            const newAncPath = ancParts.join('.');
+            if (newAncPath === ancPath) { renderTable(); return; }
+
+            const prefix = ancPath + '.';
+            detectedFields.forEach(f => {
+                if (f.targetXmlPath === ancPath) {
+                    f.targetXmlPath = newAncPath;
+                    f.isCovered = existingXmlMap.has(f.targetXmlPath);
+                } else if (f.targetXmlPath.startsWith(prefix)) {
+                    f.targetXmlPath = newAncPath + f.targetXmlPath.substring(ancPath.length);
+                    f.isCovered = existingXmlMap.has(f.targetXmlPath);
+                }
+            });
+            updateStats();
+            renderTable();
+        });
+    });
+
+    // Déplacement d'une feuille manquante sous une autre mère
+    document.querySelectorAll('.move-select').forEach(sel => {
+        sel.addEventListener('change', e => {
+            const id = e.target.getAttribute('data-id');
+            const destPath = e.target.value;
+            const field = detectedFields.find(f => f.id === id);
+            if (!field || !destPath) { e.target.value = ''; return; }
+            const parts = splitXmlPath(field.targetXmlPath);
+            const leafName = parts[parts.length - 1];
+            field.targetXmlPath = destPath + '.' + leafName;
+            field.isCovered = existingXmlMap.has(field.targetXmlPath);
+            field.selectedForAdd = !field.isCovered;
+            updateStats();
             renderTable();
         });
     });

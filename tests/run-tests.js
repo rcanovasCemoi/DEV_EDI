@@ -79,7 +79,7 @@ const loader = new Function(
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
     loadDemoScenario, buildCompletedEdi, analyzeEdifactFiles,
-    countPathLevels, buildHierarchyVisual,
+    countPathLevels, splitXmlPath, buildTreeOrdering,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
     getActiveMessageType: function() { return activeMessageType; },
@@ -218,17 +218,26 @@ ok(new Set(ftxPaths).size === ftxPaths.length, 'FTX INV/PUR/ZZZ : aucun doublon 
 const allPaths = app.getDetectedFields().filter(f => !f.isXmlOnly).map(f => f.targetXmlPath);
 ok(new Set(allPaths).size === allPaths.length, `Aucun doublon global (${allPaths.length} chemins uniques)`);
 
-console.log('\n== 10. Colonne Hiérarchie ==');
+console.log('\n== 10. Vue arborescente des chemins XML ==');
 eq(app.countPathLevels('EDIXml'), 1, 'Niveau 1 pour une balise racine (0 point)');
-eq(app.countPathLevels('OrderHeader.FreeText'), 2, 'Niveau 2 (1 point)');
-eq(app.countPathLevels('OrderHeader.Buyer.GLN'), 3, 'Niveau 3 (2 points)');
 eq(app.countPathLevels('OrderHeader.Buyer.Contact.Name'), 4, 'Niveau 4 (3 points)');
 eq(app.countPathLevels(''), 0, 'Chemin vide → niveau 0');
-eq(app.countPathLevels('..'), 0, 'Points seuls → niveau 0 (segments vides ignorés)');
-eq(app.buildHierarchyVisual('EDIXml'), '', 'Niveau 1 : pas de tirets');
-eq(app.buildHierarchyVisual('OrderHeader.FreeText'), '---|', 'Niveau 2 : ---|');
-eq(app.buildHierarchyVisual('OrderHeader.Buyer.GLN'), '---|---|', 'Niveau 3 : ---|---|');
-eq(app.buildHierarchyVisual('OrderHeader.Buyer.Contact.Name'), '---|---|---|', 'Niveau 4 : ---|---|---|');
+const seg = app.splitXmlPath('OrderHeader.Buyer.GLN');
+eq(seg.join('>'), 'OrderHeader>Buyer>GLN', 'splitXmlPath : segments exploitables');
+eq(app.splitXmlPath('..').length, 0, 'splitXmlPath : segments vides ignorés');
+
+// Ordre arborescent : mères émises une fois, avant leurs filles, filles groupées
+const treeRows = app.buildTreeOrdering([
+    { id: 'a', targetXmlPath: 'OrderHeader.Buyer.GLN' },
+    { id: 'b', targetXmlPath: 'OrderHeader.Buyer.Name' },
+    { id: 'c', targetXmlPath: 'OrderHeader.FreeText' },
+    { id: 'd', targetXmlPath: 'OrderHeader.Supplier.VatNumber' }
+]);
+const seq = treeRows.map(r => r.isLeafRow ? r.item.targetXmlPath : '[' + r.path + ']');
+eq(seq.join('>'), '[OrderHeader]>[OrderHeader.Buyer]>OrderHeader.Buyer.GLN>OrderHeader.Buyer.Name>OrderHeader.FreeText>[OrderHeader.Supplier]>OrderHeader.Supplier.VatNumber',
+   'Arbre : mères uniques avant filles, groupement mère/filles');
+ok(treeRows.filter(r => !r.isLeafRow).every(r => r.depth === app.splitXmlPath(r.path).length - 1), 'Profondeur des ancêtres cohérente');
+eq(treeRows.filter(r => r.isLeafRow && r.parts[r.parts.length - 1] === 'GLN').length, 1, 'Feuille GLN présente');
 
 // =============================================================================
 console.log(`\nRésultat : ${passed} PASS, ${failed} FAIL`);
