@@ -1,0 +1,2358 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur Universel de Référence XML & EDIFACT (.xml / .edi)</title>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --primary-light: #eff6ff;
+            --secondary: #475569;
+            --success: #16a34a;
+            --success-bg: #dcfce7;
+            --warning: #d97706;
+            --warning-bg: #fef3c7;
+            --purple: #6d28d9;
+            --purple-bg: #ede9fe;
+            --teal: #0d9488;
+            --teal-bg: #ccfbf1;
+            --indigo: #4338ca;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            padding: 1.4rem 2rem;
+        }
+
+        .container { max-width: 1640px; margin: 0 auto; }
+
+        header {
+            margin-bottom: 1.1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        h1 { font-size: 1.4rem; color: var(--primary); }
+        .subtitle { color: var(--secondary); font-size: 0.86rem; margin-top: 0.15rem; }
+
+        .demo-bar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+        .type-selector-bar {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.8rem 1.2rem;
+            margin-bottom: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .msg-tabs { display: flex; gap: 0.5rem; }
+
+        .msg-tab {
+            padding: 0.42rem 0.95rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: #f1f5f9;
+            color: var(--secondary);
+            font-weight: 600;
+            font-size: 0.84rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .msg-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem;
+            margin-bottom: 1.1rem;
+        }
+
+        @media (max-width: 950px) {
+            .upload-grid { grid-template-columns: 1fr; }
+        }
+
+        .upload-zone {
+            background: var(--card-bg);
+            border: 2px dashed #94a3b8;
+            border-radius: 8px;
+            padding: 1.15rem;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .upload-zone input[type="file"] { display: none; }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.48rem 0.9rem;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .btn:hover { background-color: #1e3a8a; }
+        .btn-success { background-color: var(--success); }
+        .btn-success:hover { background-color: #15803d; }
+        .btn-secondary { background-color: var(--secondary); }
+        .btn-secondary:hover { background-color: #334155; }
+        .btn-teal { background-color: var(--teal); }
+        .btn-teal:hover { background-color: #0f766e; }
+        .btn-indigo { background-color: var(--indigo); }
+        .btn-indigo:hover { background-color: #3730a3; }
+        .btn-warning { background-color: var(--warning); }
+        .btn-warning:hover { background-color: #b45309; }
+        .btn-outline {
+            background: white;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+        .btn-outline:hover { background: var(--primary-light); }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.9rem;
+            margin-bottom: 1.1rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 0.85rem 1.1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-label { font-size: 0.73rem; color: var(--secondary); text-transform: uppercase; font-weight: 600; }
+        .stat-value { font-size: 1.45rem; font-weight: 700; color: var(--primary); margin-top: 0.1rem; }
+        .stat-value.warn { color: var(--warning); }
+        .stat-value.ok { color: var(--success); }
+        .stat-value.purple { color: var(--purple); }
+        .stat-value.teal { color: var(--teal); }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+            background: var(--card-bg);
+            padding: 0.85rem 1.1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .filters { display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; }
+        input[type="text"], select, input[type="number"] {
+            padding: 0.4rem 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.82rem;
+        }
+
+        .export-actions {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .table-container {
+            background: var(--card-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            overflow-x: auto;
+            margin-bottom: 2rem;
+        }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.84rem; }
+        th {
+            background-color: #f1f5f9;
+            color: var(--secondary);
+            font-weight: 600;
+            padding: 0.65rem 0.85rem;
+            border-bottom: 2px solid var(--border);
+        }
+        td { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:hover { background-color: #f8fafc; }
+        tr.row-missing { background-color: #fffbeb; }
+        tr.row-missing:hover { background-color: #fef3c7; }
+        tr.row-xmlonly { background-color: #f8fafc; color: #64748b; }
+
+        .badge {
+            display: inline-block;
+            padding: 0.16rem 0.45rem;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+        .badge-env { background: #e2e8f0; color: #334155; }
+        .badge-header { background: #dbeafe; color: #1e40af; }
+        .badge-pack { background: var(--teal-bg); color: var(--teal); }
+        .badge-detail { background: #e0e7ff; color: #3730a3; }
+        .badge-summary { background: var(--purple-bg); color: var(--purple); }
+        .badge-ok { background: var(--success-bg); color: var(--success); }
+        .badge-missing { background: var(--warning-bg); color: #b45309; border: 1px solid #fcd34d; }
+        .badge-xmlonly { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+        .pos-code { font-family: var(--font-mono); font-weight: 700; color: var(--primary); }
+        .qual-code { font-family: var(--font-mono); background: #e2e8f0; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: 600; margin-left: 0.2rem; }
+        .ctx-code { font-family: var(--font-mono); background: #dbeafe; color: #1e40af; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.71rem; margin-left: 0.2rem; }
+
+        .xml-input {
+            width: 100%;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            padding: 0.32rem 0.5rem;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+            background: #ffffff;
+        }
+        .xml-input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.65);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 1240px;
+            max-height: 88vh;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+        }
+        .modal-header {
+            padding: 0.9rem 1.4rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .modal-subtoolbar {
+            padding: 0.65rem 1.4rem;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 1.2rem;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 0.83rem;
+        }
+        .modal-body {
+            padding: 1rem 1.4rem;
+            overflow-y: auto;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            white-space: pre;
+            line-height: 1.6;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>Analyseur EDIFACT & Générateur de Fichiers de Référence (.xml & .edi)</h1>
+            <p class="subtitle">Compare vos fichiers EDIFACT (ORDERS, DESADV, INVOIC) avec votre XML de référence et génère le XML complété ainsi que le fichier .EDI de référence peuplé aléatoirement.</p>
+        </div>
+        <div class="demo-bar">
+            <span style="font-size: 0.8rem; color: var(--secondary); font-weight: 600;">Simulations :</span>
+            <button class="btn btn-outline" onclick="loadDemoScenario('ORDERS')">Démo ORDERS (Votre XML + EDI)</button>
+            <button class="btn btn-outline" onclick="loadDemoScenario('DESADV')">Démo DESADV</button>
+            <button class="btn btn-outline" onclick="loadDemoScenario('INVOIC')">Démo INVOIC</button>
+        </div>
+    </header>
+
+    <!-- Sélection du type de flux -->
+    <div class="type-selector-bar">
+        <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+            <span style="font-weight: 600; font-size: 0.86rem;">Flux EDIFACT :</span>
+            <div class="msg-tabs">
+                <button class="msg-tab active" data-type="ORDERS" onclick="switchMessageType('ORDERS')">ORDERS (Commande)</button>
+                <button class="msg-tab" data-type="DESADV" onclick="switchMessageType('DESADV')">DESADV (Avis d'expédition)</button>
+                <button class="msg-tab" data-type="INVOIC" onclick="switchMessageType('INVOIC')">INVOIC (Facture)</button>
+            </div>
+        </div>
+        <div style="font-size: 0.81rem; color: var(--secondary);" id="xmlStructureInfo"></div>
+    </div>
+
+    <!-- Zones de chargement -->
+    <div class="upload-grid">
+        <div class="upload-zone" id="dropZoneXml">
+            <input type="file" id="fileInputXml" accept=".xml">
+            <h3 style="margin-bottom: 0.25rem; color: var(--primary); font-size: 0.98rem;">1. Fichier XML Pivot de Référence (.xml)</h3>
+            <p style="color: var(--secondary); font-size: 0.82rem; margin-bottom: 0.75rem;" id="xmlStatusText">
+                Référence chargée : <strong>BW_orders_pivot_origine_2.xml</strong>
+            </p>
+            <button class="btn btn-secondary" onclick="document.getElementById('fileInputXml').click()">Charger un fichier XML de référence (.xml)</button>
+        </div>
+
+        <div class="upload-zone" id="dropZoneEdi">
+            <input type="file" id="fileInputEdi" multiple accept=".txt,.edi,.edifact,.dat">
+            <h3 style="margin-bottom: 0.25rem; color: var(--primary); font-size: 0.98rem;">2. Fichiers d'Entrée EDIFACT Clients (.txt, .edi)</h3>
+            <p style="color: var(--secondary); font-size: 0.82rem; margin-bottom: 0.75rem;" id="ediStatusText">
+                Glissez-déposez vos fichiers d'exemples EDIFACT ici (analyse multi-fichiers).
+            </p>
+            <button class="btn" onclick="document.getElementById('fileInputEdi').click()">Sélectionner les fichiers d'entrée EDIFACT</button>
+        </div>
+    </div>
+
+    <!-- Zone de résultats -->
+    <div id="resultsArea" class="hidden">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Fichiers EDIFACT analysés</div>
+                <div class="stat-value" id="statFiles">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Segments .EDI fusionnés</div>
+                <div class="stat-value teal" id="statEdiSegments">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Balises dans le XML Réf.</div>
+                <div class="stat-value purple" id="statXmlTotal">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Champs EDIFACT détectés</div>
+                <div class="stat-value" id="statTotalFields">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Déjà présents dans le XML</div>
+                <div class="stat-value ok" id="statCovered">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Manquants dans XML (À ajouter)</div>
+                <div class="stat-value warn" id="statMissing">0</div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="filters">
+                <input type="text" id="searchInput" placeholder="Rechercher segment, qualifiant, balise XML...">
+                <select id="statusFilter">
+                    <option value="ALL_EDI">Tous les champs EDIFACT détectés</option>
+                    <option value="MISSING">Manquants dans le XML (À ajouter)</option>
+                    <option value="COVERED">Présents dans EDIFACT & XML</option>
+                    <option value="ALL_WITH_XML">Vue totale (inclut les balises XML non utilisées dans l'EDI)</option>
+                </select>
+                <select id="sectionFilter">
+                    <option value="ALL">Toutes les sections</option>
+                    <option value="ENVELOPE">Racine / Enveloppe (EDIXml / UNB)</option>
+                    <option value="HEADER">En-tête (Header & Partenaires)</option>
+                    <option value="PACKAGING">Colisage / Logistique (CPS / PAC)</option>
+                    <option value="DETAIL">Détail Ligne (Item / LIN)</option>
+                    <option value="SUMMARY">Pied / Totaux (Summary / UNS)</option>
+                </select>
+                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 0.3rem; cursor: pointer;">
+                    <input type="checkbox" id="toggleSelectAllMissing" checked>
+                    Cocher tous les manquants
+                </label>
+                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 0.3rem; cursor: pointer;" title="Si coché, peuple aussi les nouvelles balises XML avec des valeurs aléatoires.">
+                    <input type="checkbox" id="fillXmlRandomValues">
+                    Valeurs aléatoires dans XML
+                </label>
+            </div>
+            <div class="export-actions">
+                <button id="btnExportCsv" class="btn btn-teal" title="Exporter la table de correspondance CSV">Matrice (.csv)</button>
+                <button id="btnPreviewEdi" class="btn btn-indigo">Aperçu .EDI de Référence</button>
+                <button id="btnExportEdi" class="btn btn-warning">Télécharger .EDI Réf. (.edi)</button>
+                <button id="btnPreviewXml" class="btn btn-secondary">Aperçu XML Réf.</button>
+                <button id="btnExportXml" class="btn btn-success">Télécharger XML Réf. (.xml)</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 45px; text-align: center;">Ajouter</th>
+                        <th style="width: 145px;">Section</th>
+                        <th style="width: 175px;">Segment & Position EDIFACT</th>
+                        <th style="width: 290px;">Signification Métier & Valeurs détectées</th>
+                        <th style="width: 95px;">Fréquence</th>
+                        <th style="width: 175px;">Statut de Couverture</th>
+                        <th>Chemin / Balise cible dans le XML de Référence (Éditable)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'aperçu XML ou EDI -->
+<div id="previewModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Aperçu du fichier de Référence complété</h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <button id="btnRegenerateRandom" class="btn btn-warning hidden">🎲 Régénérer des valeurs aléatoires</button>
+                <button id="btnCopyModalContent" class="btn btn-teal">Copier le contenu</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('previewModal').classList.add('hidden')">Fermer</button>
+            </div>
+        </div>
+        <div id="ediModalOptions" class="modal-subtoolbar hidden">
+            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: 500;">
+                Nombre de lignes d'articles (LIN) à générer :
+                <input type="number" id="ediLineCountInput" value="3" min="1" max="20" style="width: 65px;">
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                <input type="checkbox" id="ediIncludeXmlOnlySegments">
+                Ajouter aussi les segments correspondant aux balises présentes uniquement dans le XML de référence
+            </label>
+        </div>
+        <div class="modal-body" id="modalPreviewContent"></div>
+    </div>
+</div>
+
+<script>
+/**
+ * ============================================================================
+ * 1. FICHIERS XML DE RÉFÉRENCE PAR DÉFAUT (FORMAT DIRECT NATIF)
+ *    Inclut l'intégralité de BW_orders_pivot_origine_2.xml (75 chemins, 3 items)
+ * ============================================================================
+ */
+const DEFAULT_XML_TEMPLATES = {
+    ORDERS: `<?xml version="1.0" encoding="UTF-8"?>
+<EDIXml>
+   <SenderID>5400141000009</SenderID>
+   <ReceiverID>5410059000008</ReceiverID>
+   <DocumentDateTime>202610271517</DocumentDateTime>
+   <ControlReference>3354</ControlReference>
+   <TestIndicator>PRODUCTION</TestIndicator>
+   <Version>1.0</Version>
+   <Order>
+      <OrderHeader>
+         <OrderType>220</OrderType>
+         <OrderNumber>POF7896772</OrderNumber>
+         <OrderDate>202610270000</OrderDate>
+         <RequestedDeliveryDate>202610300000</RequestedDeliveryDate>
+         <LatestDeliveryDate/>
+         <EarliestDeliveryDate/>
+         <FreeText/>
+         <Buyer>
+            <GLN>5400141000153</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Buyer>
+         <Supplier>
+            <GLN>5410059000008</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Supplier>
+         <DeliveryParty>
+            <GLN>5400141230000</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText>5400141000153</FreeText>
+         </DeliveryParty>
+         <UltimateConsignee>
+            <GLN/>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </UltimateConsignee>
+         <Invoicee>
+            <GLN/>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Invoicee>
+         <Currency/>
+      </OrderHeader>
+      <OrderDetail>
+         <OrderItem>
+            <LineNumber>1</LineNumber>
+            <GTINArticleNumber>15410059033140</GTINArticleNumber>
+            <BuyerArticleNumber>02515</BuyerArticleNumber>
+            <SupplierArticleNumber/>
+            <GTINCUArticleNumber/>
+            <OrderedUnits/>
+            <ArticleDescription/>
+            <QuantityOrdered>144</QuantityOrdered>
+            <UnitQuantityOrdered/>
+            <QuantityFreeItems/>
+            <UnitQuantityFreeItems/>
+            <NumberOfCUInTU/>
+            <UnitPrice/>
+            <VATRate/>
+            <NumberOfPackages/>
+            <TypeOfPackage/>
+            <EANPackage/>
+            <PlaceOfDelivery/>
+            <DeliveryDate>20261030</DeliveryDate>
+            <Discount/>
+            <FreeText/>
+         </OrderItem>
+         <OrderItem>
+            <LineNumber>2</LineNumber>
+            <GTINArticleNumber>15412322651013</GTINArticleNumber>
+            <BuyerArticleNumber>20137</BuyerArticleNumber>
+            <SupplierArticleNumber/>
+            <GTINCUArticleNumber/>
+            <OrderedUnits/>
+            <ArticleDescription/>
+            <QuantityOrdered>243</QuantityOrdered>
+            <UnitQuantityOrdered/>
+            <QuantityFreeItems/>
+            <UnitQuantityFreeItems/>
+            <NumberOfCUInTU/>
+            <UnitPrice/>
+            <VATRate/>
+            <NumberOfPackages/>
+            <TypeOfPackage/>
+            <EANPackage/>
+            <PlaceOfDelivery/>
+            <DeliveryDate>20261030</DeliveryDate>
+            <Discount/>
+            <FreeText/>
+         </OrderItem>
+         <OrderItem>
+            <LineNumber>3</LineNumber>
+            <GTINArticleNumber>5410059443454</GTINArticleNumber>
+            <BuyerArticleNumber>22845</BuyerArticleNumber>
+            <SupplierArticleNumber/>
+            <GTINCUArticleNumber/>
+            <OrderedUnits/>
+            <ArticleDescription/>
+            <QuantityOrdered>50</QuantityOrdered>
+            <UnitQuantityOrdered/>
+            <QuantityFreeItems/>
+            <UnitQuantityFreeItems/>
+            <NumberOfCUInTU/>
+            <UnitPrice/>
+            <VATRate/>
+            <NumberOfPackages/>
+            <TypeOfPackage/>
+            <EANPackage/>
+            <PlaceOfDelivery/>
+            <DeliveryDate>20261030</DeliveryDate>
+            <Discount/>
+            <FreeText/>
+         </OrderItem>
+      </OrderDetail>
+   </Order>
+</EDIXml>`,
+
+    DESADV: `<?xml version="1.0" encoding="UTF-8"?>
+<EDIXml>
+   <SenderID>5410059000008</SenderID>
+   <ReceiverID>5400141000009</ReceiverID>
+   <DocumentDateTime>202610280900</DocumentDateTime>
+   <ControlReference>0000000098</ControlReference>
+   <TestIndicator>PRODUCTION</TestIndicator>
+   <Version>1.0</Version>
+   <DespatchAdvice>
+      <DespatchHeader>
+         <DocumentType>351</DocumentType>
+         <DespatchNumber>BL20260998</DespatchNumber>
+         <DocumentDate>20261028</DocumentDate>
+         <DeliveryDate>20261030</DeliveryDate>
+         <BuyerOrderReference>POF7896772</BuyerOrderReference>
+         <Buyer>
+            <GLN>5400141000153</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Buyer>
+         <Supplier>
+            <GLN>5410059000008</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Supplier>
+         <DeliveryParty>
+            <GLN>5400141230000</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </DeliveryParty>
+      </DespatchHeader>
+      <DespatchDetail>
+         <DespatchItem>
+            <LineNumber>1</LineNumber>
+            <GTINArticleNumber>15410059033140</GTINArticleNumber>
+            <BuyerArticleNumber/>
+            <SupplierArticleNumber/>
+            <ArticleDescription/>
+            <QuantityDespatched>480</QuantityDespatched>
+            <UnitQuantityDespatched>PCE</UnitQuantityDespatched>
+            <SSCC/>
+         </DespatchItem>
+      </DespatchDetail>
+   </DespatchAdvice>
+</EDIXml>`,
+
+    INVOIC: `<?xml version="1.0" encoding="UTF-8"?>
+<EDIXml>
+   <SenderID>5410059000008</SenderID>
+   <ReceiverID>5400141000009</ReceiverID>
+   <DocumentDateTime>202610281800</DocumentDateTime>
+   <ControlReference>0000000451</ControlReference>
+   <TestIndicator>PRODUCTION</TestIndicator>
+   <Version>1.0</Version>
+   <Invoice>
+      <InvoiceHeader>
+         <InvoiceType>380</InvoiceType>
+         <InvoiceNumber>FA202600451</InvoiceNumber>
+         <InvoiceDate>20261028</InvoiceDate>
+         <Currency>EUR</Currency>
+         <Buyer>
+            <GLN>5400141000153</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Buyer>
+         <Supplier>
+            <GLN>5410059000008</GLN>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Supplier>
+         <Invoicee>
+            <GLN/>
+            <Name/>
+            <Address/>
+            <Zip/>
+            <City/>
+            <Country/>
+            <VatNumber/>
+            <FreeText/>
+         </Invoicee>
+      </InvoiceHeader>
+      <InvoiceDetail>
+         <InvoiceItem>
+            <LineNumber>1</LineNumber>
+            <GTINArticleNumber>15410059033140</GTINArticleNumber>
+            <BuyerArticleNumber/>
+            <SupplierArticleNumber/>
+            <ArticleDescription/>
+            <QuantityInvoiced>480</QuantityInvoiced>
+            <UnitPrice>0.958</UnitPrice>
+            <LineNetAmount>459.84</LineNetAmount>
+            <VATRate>5.5</VATRate>
+         </InvoiceItem>
+      </InvoiceDetail>
+      <InvoiceSummary>
+         <TotalNetAmount>459.84</TotalNetAmount>
+         <TotalTaxAmount>25.29</TotalTaxAmount>
+         <TotalGrossAmount>485.13</TotalGrossAmount>
+      </InvoiceSummary>
+   </Invoice>
+</EDIXml>`
+};
+
+/**
+ * ============================================================================
+ * 2. DICTIONNAIRE UNIVERSEL COMPLET (ORDERS + DESADV + INVOIC)
+ * ============================================================================
+ */
+const PARTY_MAP = {
+    'BY': 'Buyer',
+    'SU': 'Supplier',
+    'SE': 'Supplier',
+    'DP': 'DeliveryParty',
+    'IV': 'Invoicee',
+    'UC': 'UltimateConsignee',
+    'PR': 'Payer',
+    'OB': 'OrderedBy',
+    'WH': 'WarehouseParty',
+    'SF': 'ShipFrom'
+};
+
+const UNIVERSAL_EDIFACT_RULES = {
+    // --- ENVELOPPE INTERCHANGE (UNB -> EDIXml) ---
+    'ENVELOPE||UNB||UNB02.1': { role: 'DATA', field: 'SenderID', label: 'Identifiant Émetteur (UNB02.1)' },
+    'ENVELOPE||UNB||UNB03.1': { role: 'DATA', field: 'ReceiverID', label: 'Identifiant Destinataire (UNB03.1)' },
+    'ENVELOPE||UNB||UNB04.1': { role: 'DATA', field: 'DocumentDateTime', label: 'Date de génération de l\'interchange (UNB04.1)' },
+    'ENVELOPE||UNB||UNB05.1': { role: 'DATA', field: 'ControlReference', label: 'Référence de contrôle UNB (UNB05.1)' },
+    'ENVELOPE||UNB||UNB11.1': { role: 'DATA', field: 'TestIndicator', label: 'Indicateur de test (UNB11.1)' },
+
+    // --- DÉBUT DU MESSAGE (BGM) ---
+    'HEADER||BGM|220|BGM01.1': { role: 'DATA', field: 'OrderType', label: 'Type de commande (220 = Commande)' },
+    'HEADER||BGM|220|BGM02.1': { role: 'DATA', field: 'OrderNumber', label: 'Numéro de commande client' },
+    'HEADER||BGM|220|BGM03.1': { role: 'DATA', field: 'MessageFunction', label: 'Code fonction du message (6=Confirmation, 9=Original)' },
+
+    'HEADER||BGM|351|BGM01.1': { role: 'DATA', field: 'DocumentType', label: 'Type d\'avis d\'expédition (351 = DESADV)' },
+    'HEADER||BGM|351|BGM02.1': { role: 'DATA', field: 'DespatchNumber', label: 'Numéro d\'avis d\'expédition / BL' },
+    'HEADER||BGM|351|BGM03.1': { role: 'DATA', field: 'MessageFunction', label: 'Code fonction du message (9 = Original)' },
+
+    'HEADER||BGM|380|BGM01.1': { role: 'DATA', field: 'InvoiceType', label: 'Type de facture (380 = Facture commerciale)' },
+    'HEADER||BGM|380|BGM02.1': { role: 'DATA', field: 'InvoiceNumber', label: 'Numéro de facture' },
+    'HEADER||BGM|380|BGM03.1': { role: 'DATA', field: 'MessageFunction', label: 'Code fonction du message (9 = Original)' },
+
+    'HEADER||BGM|381|BGM01.1': { role: 'DATA', field: 'InvoiceType', label: 'Type de document (381 = Avoir / Credit Note)' },
+    'HEADER||BGM|381|BGM02.1': { role: 'DATA', field: 'InvoiceNumber', label: 'Numéro d\'avoir' },
+    'HEADER||BGM|381|BGM03.1': { role: 'DATA', field: 'MessageFunction', label: 'Code fonction du message' },
+
+    // --- DATES EN-TÊTE (DTM) ---
+    'HEADER||DTM|137|DTM01.2': { role: 'DATA', field: 'OrderDate|DocumentDate|InvoiceDate', label: 'Date du document / message (DTM+137)' },
+    'HEADER||DTM|2|DTM01.2':   { role: 'DATA', field: 'RequestedDeliveryDate|DeliveryDate', label: 'Date/Heure de livraison demandée (DTM+2)' },
+    'HEADER||DTM|11|DTM01.2':  { role: 'DATA', field: 'DespatchDateTime', label: 'Date/Heure d\'expédition (DTM+11)' },
+    'HEADER||DTM|17|DTM01.2':  { role: 'DATA', field: 'EstimatedDeliveryDate', label: 'Date/Heure de livraison estimée (DTM+17)' },
+    'HEADER||DTM|35|DTM01.2':  { role: 'DATA', field: 'ActualDeliveryDate', label: 'Date de livraison effective (DTM+35)' },
+    'HEADER||DTM|63|DTM01.2':  { role: 'DATA', field: 'LatestDeliveryDate', label: 'Date de livraison au plus tard (DTM+63)' },
+    'HEADER||DTM|64|DTM01.2':  { role: 'DATA', field: 'EarliestDeliveryDate', label: 'Date de livraison au plus tôt (DTM+64)' },
+    'HEADER||DTM|134|DTM01.2': { role: 'DATA', field: 'TaxPointDate', label: 'Date d\'exigibilité de la TVA (DTM+134)' },
+    'HEADER||DTM|140|DTM01.2': { role: 'DATA', field: 'PaymentDueDate', label: 'Date d\'échéance de paiement (DTM+140)' },
+    'HEADER||DTM|171|DTM01.2': { role: 'DATA', field: 'ReferenceDate', label: 'Date de la référence associée (DTM+171)' },
+
+    // --- TEXTES LIBRES EN-TÊTE (FTX) ---
+    'HEADER||FTX|PUR|FTX04.1': { role: 'DATA', field: 'FreeText', label: 'Texte libre Achat / Contact (FTX+PUR)' },
+    'HEADER||FTX|DEL|FTX04.1': { role: 'DATA', field: 'DeliveryInstructions|FreeText', label: 'Instructions de livraison (FTX+DEL)' },
+    'HEADER||FTX|INV|FTX04.1': { role: 'DATA', field: 'InvoiceFreeText|FreeText', label: 'Mentions facture (FTX+INV)' },
+    'HEADER||FTX|REG|FTX04.1': { role: 'DATA', field: 'RegulatoryFreeText', label: 'Mentions légales / réglementaires (FTX+REG)' },
+    'HEADER||FTX|AAI|FTX04.1': { role: 'DATA', field: 'FreeText', label: 'Information générale (FTX+AAI)' },
+    'HEADER||FTX|ZZZ|FTX04.1': { role: 'DATA', field: 'FreeText', label: 'Texte libre mutuellement défini (FTX+ZZZ)' },
+
+    // --- RÉFÉRENCES GLOBALES EN-TÊTE (RFF hors groupe NAD) ---
+    'HEADER||RFF|ON|RFF01.2':  { role: 'DATA', field: 'BuyerOrderReference', label: 'Numéro de commande acheteur (RFF+ON)' },
+    'HEADER||RFF|VN|RFF01.2':  { role: 'DATA', field: 'SupplierOrderReference', label: 'Référence commande fournisseur / Code vendeur (RFF+VN)' },
+    'HEADER||RFF|DQ|RFF01.2':  { role: 'DATA', field: 'DeliveryNoteReference', label: 'Numéro de Bon de Livraison / BL (RFF+DQ)' },
+    'HEADER||RFF|AAK|RFF01.2': { role: 'DATA', field: 'DespatchAdviceReference', label: 'Numéro d\'avis d\'expédition (RFF+AAK)' },
+    'HEADER||RFF|IV|RFF01.2':  { role: 'DATA', field: 'InvoiceReference', label: 'Numéro de facture associée (RFF+IV)' },
+    'HEADER||RFF|CR|RFF01.2':  { role: 'DATA', field: 'CustomerReference', label: 'Référence client (RFF+CR)' },
+    'HEADER||RFF|CT|RFF01.2':  { role: 'DATA', field: 'ContractNumber', label: 'Numéro de contrat (RFF+CT)' },
+
+    // --- DEVISES, PAIEMENT, TRANSPORT, INCOTERMS (CUX, PAT, PAI, TDT, TOD, EQD) ---
+    'HEADER||CUX|2|CUX01.2':   { role: 'DATA', field: 'Currency', label: 'Devise du document (CUX+2)' },
+    'HEADER||PAI||PAI01.3':    { role: 'DATA', field: 'PaymentMeansCode', label: 'Moyen de paiement (ex: 42 = Virement bancaire)' },
+    'HEADER||PAT|1|PAT02.1':   { role: 'DATA', field: 'PaymentTermsType', label: 'Type de conditions de paiement (PAT+1)' },
+    'HEADER||PAT|1|PAT02.4':   { role: 'DATA', field: 'PaymentTermsDays', label: 'Nombre de jours d\'échéance (PAT+1)' },
+    'HEADER||TDT|20|TDT03.1':  { role: 'DATA', field: 'ShippingMethod', label: 'Mode de transport (ex: 30 = Route)' },
+    'HEADER||TDT|20|TDT05.1':  { role: 'DATA', field: 'CarrierCode', label: 'Identifiant du transporteur (TDT05.1)' },
+    'HEADER||TDT|20|TDT05.4':  { role: 'DATA', field: 'CarrierName', label: 'Nom du transporteur (TDT05.4)' },
+    'HEADER||TOD|10E|TOD01.1': { role: 'DATA', field: 'DeliveryTermsFunction', label: 'Fonction des conditions de livraison (TOD01)' },
+    'HEADER||TOD|10E|TOD02.1': { role: 'DATA', field: 'DeliveryTermsMethod', label: 'Méthode de port / Incoterm (TOD02)' },
+    'HEADER||TOD||TOD03.1':    { role: 'DATA', field: 'IncotermCode', label: 'Code Incoterm (EXW, FCA, DDP...)' },
+    'HEADER||EQD|TE|EQD02.1':  { role: 'DATA', field: 'TrailerRegistrationNumber', label: 'Immatriculation Remorque / Camion (EQD+TE)' },
+
+    // --- NIVEAU COLISAGE / HIÉRARCHIE LOGISTIQUE DESADV (PACKAGING : CPS, PAC, MEA, PCI, GIN) ---
+    'PACKAGING||CPS||CPS01.1':    { role: 'DATA', field: 'PackingSequenceNumber', label: 'Numéro de séquence hiérarchique (CPS01)' },
+    'PACKAGING||CPS||CPS02.1':    { role: 'DATA', field: 'ParentPackingSequence', label: 'Identifiant du niveau parent (CPS02)' },
+    'PACKAGING||CPS||CPS03.1':    { role: 'DATA', field: 'PackagingLevelCode', label: 'Niveau hiérarchique d\'emballage (1=Interne, 3=Externe, 4=Palette)' },
+    'PACKAGING||PAC||PAC01.1':    { role: 'DATA', field: 'NumberOfPackages', label: 'Nombre de colis / palettes dans l\'unité logistique (PAC01)' },
+    'PACKAGING||PAC||PAC02.1':    { role: 'DATA', field: 'PackagingLevel', label: 'Condition d\'emballage (PAC02)' },
+    'PACKAGING||PAC||PAC03.1':    { role: 'DATA', field: 'TypeOfPackage', label: 'Type de support logistique (201=Palette ISO, CS=Caisse)' },
+    'PACKAGING||PAC||PAC03.4':    { role: 'DATA', field: 'EANPackage|SSCC', label: 'Identifiant colis dans PAC (PAC03.4)' },
+    'PACKAGING||MEA|PD|MEA02.1':  { role: 'DATA', field: 'PackageMeasuredDimension', label: 'Dimension mesurée du colis/palette (AAB=Poids brut)' },
+    'PACKAGING||MEA|PD|MEA03.1':  { role: 'DATA', field: 'PackageWeightUnit', label: 'Unité de poids du colis/palette (KGM)' },
+    'PACKAGING||MEA|PD|MEA03.2':  { role: 'DATA', field: 'PackageGrossWeight', label: 'Poids brut de la palette / colis (MEA+PD)' },
+    'PACKAGING||PCI|17|PCI02.1':  { role: 'DATA', field: 'ShippingMarks', label: 'Marquage d\'expédition (PCI+17)' },
+    'PACKAGING||GIN|BJ|GIN02.1':  { role: 'DATA', field: 'SSCC|EANPackage', label: 'Numéro SSCC de la palette / colis (GIN+BJ)' },
+
+    // --- LIGNES ARTICLES (DETAIL : Aligné avec les 21 balises de OrderItem) ---
+    'DETAIL||LIN||LIN01.1':       { role: 'DATA', field: 'LineNumber', label: 'Numéro de ligne article (LIN01)' },
+    'DETAIL||LIN||LIN03.1':       { role: 'DATA', field: 'GTINArticleNumber', label: 'Code EAN / GTIN de l\'article (LIN03.1)' },
+
+    'DETAIL||PIA|SA|PIA02.1':     { role: 'DATA', field: 'SupplierArticleNumber', label: 'Code article fournisseur (PIA SA)' },
+    'DETAIL||PIA|IN|PIA02.1':     { role: 'DATA', field: 'BuyerArticleNumber', label: 'Code article acheteur (PIA IN)' },
+    'DETAIL||PIA|EN|PIA02.1':     { role: 'DATA', field: 'GTINCUArticleNumber', label: 'Code GTIN Unité Consommateur (PIA EN)' },
+    'DETAIL||PIA|NB|PIA02.1':     { role: 'DATA', field: 'BatchNumber', label: 'Numéro de lot (PIA NB)' },
+    'DETAIL||PIA|1|PIA02.1':      { role: 'DATA', field: 'SupplierArticleNumber', label: 'Code article fournisseur / Référence additionnelle (PIA+1)' },
+    'DETAIL||PIA|5|PIA02.1':      { role: 'DATA', field: 'BuyerArticleNumber', label: 'Code article acheteur (PIA+5)' },
+
+    'DETAIL||IMD|F|IMD03.4':      { role: 'DATA', field: 'ArticleDescription', label: 'Libellé descriptif de l\'article (IMD+F)' },
+    'DETAIL||IMD|C|IMD02.1':      { role: 'DATA', field: 'OrderedUnits', label: 'Unité commandée CU ou TU (IMD+C / OrderedUnits)' },
+
+    'DETAIL||MEA|PD|MEA02.1':     { role: 'DATA', field: 'LineMeasuredDimension', label: 'Dimension mesurée sur ligne (AAA=Poids net, AAB=Poids brut)' },
+    'DETAIL||MEA|PD|MEA03.1':     { role: 'DATA', field: 'LineMeasureUnit', label: 'Unité de mesure ligne (KGM, LTR)' },
+    'DETAIL||MEA|PD|MEA03.2':     { role: 'DATA', field: 'LineWeight', label: 'Poids de la ligne article (MEA+PD)' },
+
+    'DETAIL||QTY|21|QTY01.2':     { role: 'DATA', field: 'QuantityOrdered', label: 'Quantité commandée (QTY+21)' },
+    'DETAIL||QTY|21|QTY01.3':     { role: 'DATA', field: 'UnitQuantityOrdered', label: 'Unité de quantité commandée (QTY+21)' },
+    'DETAIL||QTY|192|QTY01.2':    { role: 'DATA', field: 'QuantityFreeItems', label: 'Quantité gratuite incluse (QTY+192)' },
+    'DETAIL||QTY|192|QTY01.3':    { role: 'DATA', field: 'UnitQuantityFreeItems', label: 'Unité de quantité gratuite (QTY+192)' },
+    'DETAIL||QTY|59|QTY01.2':     { role: 'DATA', field: 'NumberOfCUInTU', label: 'Nombre d\'UC par unité commerciale / PCB (QTY+59)' },
+    'DETAIL||QTY|59|QTY01.3':     { role: 'DATA', field: 'UnitOfCUInTU', label: 'Unité de mesure du PCB (QTY+59)' },
+    'DETAIL||QTY|12|QTY01.2':     { role: 'DATA', field: 'QuantityDespatched', label: 'Quantité expédiée (QTY+12)' },
+    'DETAIL||QTY|12|QTY01.3':     { role: 'DATA', field: 'UnitQuantityDespatched', label: 'Unité de quantité expédiée (QTY+12)' },
+    'DETAIL||QTY|47|QTY01.2':     { role: 'DATA', field: 'QuantityInvoiced', label: 'Quantité facturée (QTY+47)' },
+    'DETAIL||QTY|47|QTY01.3':     { role: 'DATA', field: 'UnitQuantityInvoiced', label: 'Unité de quantité facturée (QTY+47)' },
+    'DETAIL||QTY|46|QTY01.2':     { role: 'DATA', field: 'QuantityDelivered', label: 'Quantité livrée (QTY+46)' },
+
+    'DETAIL||DTM|2|DTM01.2':      { role: 'DATA', field: 'DeliveryDate', label: 'Date de livraison de la ligne (DTM+2)' },
+    'DETAIL||DTM|361|DTM01.2':    { role: 'DATA', field: 'BestBeforeDate', label: 'Date limite de vente / DLUO / DLC (DTM+361)' },
+    'DETAIL||DTM|36|DTM01.2':     { role: 'DATA', field: 'ExpiryDate', label: 'Date d\'expiration / DLC stricte (DTM+36)' },
+    'DETAIL||DTM|94|DTM01.2':     { role: 'DATA', field: 'ProductionDate', label: 'Date de fabrication / production (DTM+94)' },
+
+    'DETAIL||LOC|7|LOC02.1':      { role: 'DATA', field: 'PlaceOfDelivery', label: 'Lieu de livraison de la ligne (LOC+7)' },
+
+    'DETAIL||GIN|BX|GIN02.1':     { role: 'DATA', field: 'BatchNumber', label: 'Numéro de lot de fabrication (GIN+BX)' },
+    'DETAIL||GIN|BJ|GIN02.1':     { role: 'DATA', field: 'SSCC|EANPackage', label: 'Code SSCC rattaché à la ligne (GIN+BJ)' },
+
+    'DETAIL||PRI|AAA|PRI01.2':    { role: 'DATA', field: 'UnitPrice', label: 'Prix unitaire Net HT (PRI+AAA)' },
+    'DETAIL||PRI|AAA|PRI01.4':    { role: 'DATA', field: 'NetPriceType', label: 'Type de prix net (NTP)' },
+    'DETAIL||PRI|AAA|PRI01.6':    { role: 'DATA', field: 'PriceUnit', label: 'Unité de base du prix (PCE, KGM)' },
+    'DETAIL||PRI|AAB|PRI01.2':    { role: 'DATA', field: 'GrossUnitPrice', label: 'Prix unitaire Brut hors remises (PRI+AAB)' },
+    'DETAIL||PRI|AAB|PRI01.4':    { role: 'DATA', field: 'GrossPriceType', label: 'Type de prix brut (NTP)' },
+
+    'DETAIL||PAC||PAC01.1':       { role: 'DATA', field: 'NumberOfPackages', label: 'Nombre de colis pour la ligne (PAC01)' },
+    'DETAIL||PAC||PAC02.1':       { role: 'DATA', field: 'PackagingLevel', label: 'Niveau / Condition d\'emballage ligne (PAC02)' },
+    'DETAIL||PAC||PAC03.1':       { role: 'DATA', field: 'TypeOfPackage', label: 'Type d\'emballage ligne (CS=Caisse, X1=Palette)' },
+    'DETAIL||PAC||PAC03.4':       { role: 'DATA', field: 'EANPackage', label: 'Identifiant SSCC / EAN Colis sur ligne (PAC03.4)' },
+
+    'DETAIL||MOA|203|MOA01.2':    { role: 'DATA', field: 'LineNetAmount', label: 'Montant net de la ligne HT (MOA+203)' },
+    'DETAIL||MOA|66|MOA01.2':     { role: 'DATA', field: 'LineGrossAmount', label: 'Montant brut de la ligne (MOA+66)' },
+    'DETAIL||MOA|124|MOA01.2':    { role: 'DATA', field: 'LineTaxAmount', label: 'Montant de TVA de la ligne (MOA+124)' },
+    'DETAIL||MOA|204|MOA01.2':    { role: 'DATA', field: 'Discount|LineDiscountAmount', label: 'Montant de remise sur la ligne (MOA+204)' },
+
+    'DETAIL||ALC|A|ALC05.1':      { role: 'DATA', field: 'DiscountTypeCode', label: 'Type de remise sur ligne (ex: TD = Remise commerciale)' },
+    'DETAIL||PCD|3|PCD01.2':      { role: 'DATA', field: 'DiscountPercentage|Discount', label: 'Taux de remise sur la ligne en % (PCD+3)' },
+
+    'DETAIL||FTX||FTX04.1':       { role: 'DATA', field: 'FreeText', label: 'Texte libre de la ligne article (FTX)' },
+
+    'DETAIL||RFF|ON|RFF01.2':     { role: 'DATA', field: 'LineOrderReference', label: 'Numéro de commande d\'origine sur ligne (RFF+ON)' },
+    'DETAIL||RFF|ON|RFF01.3':     { role: 'DATA', field: 'LineOrderLineNumber', label: 'Numéro de ligne de commande d\'origine (RFF01.3)' },
+    'DETAIL||RFF|DQ|RFF01.2':     { role: 'DATA', field: 'LineDeliveryNoteReference', label: 'Numéro de BL rattaché à la ligne (RFF+DQ)' },
+
+    'DETAIL||TAX|7|TAX05.4':      { role: 'DATA', field: 'VATRate', label: 'Taux de TVA de la ligne (TAX+7)' },
+    'DETAIL||TAX|7|TAX06.1':      { role: 'DATA', field: 'TaxCategory', label: 'Catégorie de TVA ligne (S=Standard, Z=Zéro, E=Exonéré)' },
+
+    // --- RÉCAPITULATIF / PIED DE MESSAGE (SUMMARY après UNS+S) ---
+    'SUMMARY||CNT|2|CNT01.2':     { role: 'DATA', field: 'TotalLineCount', label: 'Nombre total de lignes articles (CNT+2)' },
+    'SUMMARY||MOA|79|MOA01.2':    { role: 'DATA', field: 'TotalLineItemsAmount', label: 'Total des montants nets des lignes HT (MOA+79)' },
+    'SUMMARY||MOA|125|MOA01.2':   { role: 'DATA', field: 'TotalNetAmount|TotalTaxableAmount', label: 'Montant total imposable HT (MOA+125)' },
+    'SUMMARY||MOA|176|MOA01.2':   { role: 'DATA', field: 'TotalTaxAmount', label: 'Montant total de la TVA (MOA+176)' },
+    'SUMMARY||MOA|124|MOA01.2':   { role: 'DATA', field: 'TaxSubTotalAmount', label: 'Montant de TVA par taux (MOA+124)' },
+    'SUMMARY||MOA|77|MOA01.2':    { role: 'DATA', field: 'TotalGrossAmount', label: 'Montant total facturé TTC (MOA+77)' },
+    'SUMMARY||MOA|86|MOA01.2':    { role: 'DATA', field: 'TotalGrossAmount', label: 'Montant total TTC (MOA+86)' },
+    'SUMMARY||MOA|139|MOA01.2':   { role: 'DATA', field: 'TotalPayableAmount', label: 'Montant net à payer TTC (MOA+139)' },
+    'SUMMARY||MOA|131|MOA01.2':   { role: 'DATA', field: 'TotalAllowancesChargesAmount', label: 'Total des remises / charges globales (MOA+131)' },
+    'SUMMARY||TAX|7|TAX05.4':     { role: 'DATA', field: 'SummaryVATRate', label: 'Taux de TVA du pied de facture (TAX+7)' },
+    'SUMMARY||TAX|7|TAX06.1':     { role: 'DATA', field: 'SummaryTaxCategory', label: 'Catégorie de TVA du pied de facture (TAX+7)' }
+};
+
+function getContextualPartyRule(partyQual, tag, qualifier, posCode) {
+    const partyNode = PARTY_MAP[partyQual] || `Party_${partyQual}`;
+    if (tag === 'NAD') {
+        const nadFields = {
+            'NAD02.1': { field: `${partyNode}.GLN`, label: `Code GLN ${partyNode} (NAD+${partyQual})` },
+            'NAD04.1': { field: `${partyNode}.Name`, label: `Raison sociale ${partyNode} (NAD+${partyQual})` },
+            'NAD05.1': { field: `${partyNode}.Address`, label: `Adresse ${partyNode} (NAD+${partyQual})` },
+            'NAD06.1': { field: `${partyNode}.City`, label: `Ville ${partyNode} (NAD+${partyQual})` },
+            'NAD08.1': { field: `${partyNode}.Zip`, label: `Code postal ${partyNode} (NAD+${partyQual})` },
+            'NAD09.1': { field: `${partyNode}.Country`, label: `Code pays ${partyNode} (NAD+${partyQual})` }
+        };
+        if (nadFields[posCode]) return { role: 'DATA', ...nadFields[posCode] };
+    }
+    if (tag === 'RFF') {
+        if (qualifier === 'VA' && posCode === 'RFF01.2') {
+            return { role: 'DATA', field: `${partyNode}.VatNumber`, label: `Numéro de TVA ${partyNode} (RFF+VA sous NAD+${partyQual})` };
+        }
+        if (qualifier === 'API' && posCode === 'RFF01.2') {
+            return { role: 'DATA', field: `${partyNode}.FreeText|${partyNode}.AdditionalId`, label: `Identifiant additionnel / Texte ${partyNode} (RFF+API sous NAD+${partyQual})` };
+        }
+    }
+    if (tag === 'FTX' && posCode === 'FTX04.1') {
+        return { role: 'DATA', field: `${partyNode}.FreeText`, label: `Texte libre ${partyNode} (FTX sous NAD+${partyQual})` };
+    }
+    if (tag === 'CTA' && posCode === 'CTA02.2') {
+        return { role: 'DATA', field: `${partyNode}.ContactName`, label: `Contact ${partyNode} (CTA sous NAD+${partyQual})` };
+    }
+    if (tag === 'COM' && posCode === 'COM01.1') {
+        return { role: 'DATA', field: `${partyNode}.CommunicationNumber`, label: `Téléphone / Email ${partyNode} (COM sous NAD+${partyQual})` };
+    }
+    return null;
+}
+
+function isTechnicalQualifierPosition(tag, posCode) {
+    const qualPositions = {
+        'UNB': ['UNB01.1', 'UNB01.2', 'UNB02.2', 'UNB03.2', 'UNB04.2'],
+        'BGM': ['BGM01.2', 'BGM01.3'],
+        'DTM': ['DTM01.1', 'DTM01.3'],
+        'FTX': ['FTX01.1', 'FTX02.1', 'FTX03.1'],
+        'RFF': ['RFF01.1'],
+        'NAD': ['NAD01.1', 'NAD02.2', 'NAD02.3'],
+        'LOC': ['LOC01.1', 'LOC02.2', 'LOC02.3'],
+        'CTA': ['CTA01.1'],
+        'COM': ['COM01.2'],
+        'CUX': ['CUX01.1', 'CUX01.3'],
+        'PAT': ['PAT01.1', 'PAT02.2', 'PAT02.3'],
+        'TDT': ['TDT01.1', 'TDT05.2', 'TDT05.3'],
+        'EQD': ['EQD01.1'],
+        'PAC': ['PAC03.2', 'PAC03.3'],
+        'PCI': ['PCI01.1'],
+        'GIN': ['GIN01.1'],
+        'LIN': ['LIN02.1', 'LIN03.2'],
+        'PIA': ['PIA01.1', 'PIA02.2', 'PIA02.3'],
+        'IMD': ['IMD01.1', 'IMD02.2', 'IMD02.3', 'IMD03.1', 'IMD03.2', 'IMD03.3'],
+        'MEA': ['MEA01.1'],
+        'QTY': ['QTY01.1'],
+        'PRI': ['PRI01.1', 'PRI01.3', 'PRI01.5'],
+        'MOA': ['MOA01.1', 'MOA01.3'],
+        'ALC': ['ALC01.1'],
+        'PCD': ['PCD01.1'],
+        'TAX': ['TAX01.1', 'TAX02.1', 'TAX05.1', 'TAX05.2', 'TAX05.3'],
+        'CNT': ['CNT01.1']
+    };
+    return Boolean(qualPositions[tag] && qualPositions[tag].includes(posCode));
+}
+
+// ============================================================================
+// 3. ÉTAT GLOBAL ET INTROSPECTION DU XML DIRECT DE RÉFÉRENCE
+// ============================================================================
+let activeMessageType = 'ORDERS';
+let currentXmlString = DEFAULT_XML_TEMPLATES.ORDERS;
+let customXmlLoaded = false;
+let currentModalMode = 'XML'; // 'XML' | 'EDI'
+
+let xmlContainers = {
+    rootName: 'EDIXml',
+    docName: 'Order',
+    headerName: 'OrderHeader',
+    detailName: 'OrderDetail',
+    itemName: 'OrderItem',
+    summaryName: 'OrderSummary'
+};
+
+let existingXmlMap = new Map();
+let loadedEdiFiles = [];
+let detectedFields = [];
+
+/**
+ * Référentiel des segments EDIFACT fusionnés (Superset de tous les fichiers d'entrée)
+ * Clé : "SECTION|GROUP_CTX|TAG|QUALIFIER"
+ * Valeur : { section, groupCtx, tag, qualifier, orderIndex, maxElementIdx, elementsMap: Map<eIdx, { maxCompIdx, compsMap: Map<cIdx, { isQual, fixedVal, posCode, samples }> }> }
+ */
+let mergedEdiTemplates = new Map();
+let ediUnhHeaderRaw = "UNH+1+ORDERS:D:96A:UN:EAN008'";
+
+// Références DOM
+const fileInputEdi = document.getElementById('fileInputEdi');
+const fileInputXml = document.getElementById('fileInputXml');
+const dropZoneEdi = document.getElementById('dropZoneEdi');
+const dropZoneXml = document.getElementById('dropZoneXml');
+const resultsArea = document.getElementById('resultsArea');
+const tableBody = document.getElementById('tableBody');
+const searchInput = document.getElementById('searchInput');
+const statusFilter = document.getElementById('statusFilter');
+const sectionFilter = document.getElementById('sectionFilter');
+const toggleSelectAllMissing = document.getElementById('toggleSelectAllMissing');
+const fillXmlRandomValues = document.getElementById('fillXmlRandomValues');
+const ediLineCountInput = document.getElementById('ediLineCountInput');
+const ediIncludeXmlOnlySegments = document.getElementById('ediIncludeXmlOnlySegments');
+
+parseDirectXmlStructure(currentXmlString);
+
+// Événements Drag & Drop
+dropZoneEdi.addEventListener('dragover', e => { e.preventDefault(); dropZoneEdi.classList.add('dragover'); });
+dropZoneEdi.addEventListener('dragleave', () => dropZoneEdi.classList.remove('dragover'));
+dropZoneEdi.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZoneEdi.classList.remove('dragover');
+    handleEdiFiles(e.dataTransfer.files);
+});
+fileInputEdi.addEventListener('change', e => handleEdiFiles(e.target.files));
+
+dropZoneXml.addEventListener('dragover', e => { e.preventDefault(); dropZoneXml.classList.add('dragover'); });
+dropZoneXml.addEventListener('dragleave', () => dropZoneXml.classList.remove('dragover'));
+dropZoneXml.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZoneXml.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) handleXmlFile(e.dataTransfer.files[0]);
+});
+fileInputXml.addEventListener('change', e => {
+    if (e.target.files.length > 0) handleXmlFile(e.target.files[0]);
+});
+
+searchInput.addEventListener('input', renderTable);
+statusFilter.addEventListener('change', renderTable);
+sectionFilter.addEventListener('change', renderTable);
+toggleSelectAllMissing.addEventListener('change', e => {
+    const checked = e.target.checked;
+    detectedFields.forEach(f => {
+        if (!f.isCovered && !f.isXmlOnly) f.selectedForAdd = checked;
+    });
+    renderTable();
+});
+
+function switchMessageType(msgType, keepCustomXml = false) {
+    if (!['ORDERS', 'DESADV', 'INVOIC'].includes(msgType)) return;
+    activeMessageType = msgType;
+
+    document.querySelectorAll('.msg-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-type') === msgType);
+    });
+
+    if (!customXmlLoaded && !keepCustomXml) {
+        currentXmlString = DEFAULT_XML_TEMPLATES[msgType];
+        parseDirectXmlStructure(currentXmlString);
+        document.getElementById('xmlStatusText').innerHTML =
+            `Référence active : <strong>Modèle Direct ${msgType}</strong> (${existingXmlMap.size} balises feuilles indexées).`;
+    }
+
+    if (loadedEdiFiles.length > 0) {
+        analyzeEdifactFiles();
+        renderTable();
+    }
+}
+
+function parseDirectXmlStructure(xmlStr) {
+    existingXmlMap.clear();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlStr, 'application/xml');
+
+    const rootEl = xmlDoc.documentElement;
+    if (!rootEl || rootEl.tagName === 'parsererror') return;
+
+    xmlContainers.rootName = rootEl.tagName;
+
+    let docContainer = null;
+    Array.from(rootEl.children).forEach(child => {
+        const subElements = Array.from(child.children);
+        if (subElements.length > 0) {
+            docContainer = child;
+        } else {
+            const path = `${xmlContainers.rootName}.${child.tagName}`;
+            const val = child.textContent.trim();
+            if (!existingXmlMap.has(path) || val) {
+                existingXmlMap.set(path, { section: 'ENVELOPE', sample: val });
+            }
+        }
+    });
+
+    if (!docContainer) docContainer = rootEl;
+    xmlContainers.docName = docContainer.tagName;
+
+    let headerEl = null;
+    let detailEl = null;
+    let itemElements = [];
+    let summaryEl = null;
+
+    Array.from(docContainer.children).forEach(child => {
+        const tName = child.tagName;
+        if (/detail/i.test(tName)) {
+            detailEl = child;
+            xmlContainers.detailName = tName;
+            itemElements = Array.from(child.children);
+        } else if (/summary|footer|total/i.test(tName)) {
+            summaryEl = child;
+            xmlContainers.summaryName = tName;
+        } else if (/header/i.test(cName = tName) || !headerEl) {
+            headerEl = child;
+            xmlContainers.headerName = tName;
+        }
+    });
+
+    if (!headerEl) xmlContainers.headerName = `${xmlContainers.docName}Header`;
+    if (!detailEl) xmlContainers.detailName = `${xmlContainers.docName}Detail`;
+    if (itemElements.length > 0) {
+        xmlContainers.itemName = itemElements[0].tagName;
+    } else {
+        xmlContainers.itemName = `${xmlContainers.docName}Item`;
+    }
+    if (!summaryEl) xmlContainers.summaryName = `${xmlContainers.docName}Summary`;
+
+    if (headerEl) indexXmlSubtree(headerEl, xmlContainers.headerName, 'HEADER');
+    itemElements.forEach(itemEl => indexXmlSubtree(itemEl, xmlContainers.itemName, 'DETAIL'));
+    if (summaryEl) indexXmlSubtree(summaryEl, xmlContainers.summaryName, 'SUMMARY');
+
+    document.getElementById('xmlStructureInfo').innerHTML =
+        `Structure XML Réf. : <code>&lt;${escapeHtml(xmlContainers.docName)}&gt;</code> &rarr; <code>&lt;${escapeHtml(xmlContainers.headerName)}&gt;</code> | <code>&lt;${escapeHtml(xmlContainers.itemName)}&gt;</code> (${itemElements.length} item(s)) | <strong>${existingXmlMap.size} balises feuilles</strong>`;
+}
+
+function indexXmlSubtree(elementNode, currentPrefix, sectionCode) {
+    Array.from(elementNode.children).forEach(child => {
+        const nextPath = `${currentPrefix}.${child.tagName}`;
+        const grandChildren = Array.from(child.children);
+        if (grandChildren.length > 0) {
+            indexXmlSubtree(child, nextPath, sectionCode);
+        } else {
+            const val = child.textContent.trim();
+            if (!existingXmlMap.has(nextPath) || (!existingXmlMap.get(nextPath).sample && val)) {
+                existingXmlMap.set(nextPath, { section: sectionCode, sample: val });
+            }
+        }
+    });
+}
+
+function handleXmlFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        currentXmlString = e.target.result;
+        customXmlLoaded = true;
+        parseDirectXmlStructure(currentXmlString);
+        document.getElementById('xmlStatusText').innerHTML =
+            `XML de référence chargé : <strong>${escapeHtml(file.name)}</strong> (${existingXmlMap.size} balises feuilles indexées).`;
+        if (loadedEdiFiles.length > 0) {
+            analyzeEdifactFiles();
+            renderTable();
+        }
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
+async function handleEdiFiles(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const promises = Array.from(fileList).map(file => {
+        return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve({ filename: file.name, content: e.target.result });
+            reader.readAsText(file, 'ISO-8859-1');
+        });
+    });
+
+    loadedEdiFiles = await Promise.all(promises);
+    const detectedType = detectEdifactMessageType(loadedEdiFiles[0].content);
+    if (detectedType && detectedType !== activeMessageType) {
+        switchMessageType(detectedType, customXmlLoaded);
+    }
+
+    document.getElementById('ediStatusText').innerHTML =
+        `<strong>${loadedEdiFiles.length} fichier(s) EDIFACT</strong> chargé(s) — Flux : <strong>${activeMessageType}</strong>.`;
+    analyzeEdifactFiles();
+    resultsArea.classList.remove('hidden');
+    renderTable();
+}
+
+function detectEdifactMessageType(content) {
+    if (/UNH\+[^+']+\+DESADV/i.test(content) || /BGM\+351/i.test(content)) return 'DESADV';
+    if (/UNH\+[^+']+\+INVOIC/i.test(content) || /BGM\+(380|381)/i.test(content)) return 'INVOIC';
+    if (/UNH\+[^+']+\+ORDERS/i.test(content) || /BGM\+220/i.test(content)) return 'ORDERS';
+    return null;
+}
+
+/**
+ * ============================================================================
+ * 4. PARSEUR EDIFACT & CONSTRUCTEUR DU SUPERSET DE SEGMENTS (.EDI)
+ * ============================================================================
+ */
+function splitEdifact(str, separator, releaseChar = '?') {
+    const result = [];
+    let current = '';
+    for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (ch === releaseChar && i + 1 < str.length) {
+            current += str[i + 1];
+            i++;
+        } else if (ch === separator) {
+            result.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
+function extractQualifier(tag, elements, compSep = ':') {
+    const nonQualified = ['UNB', 'UNH', 'LIN', 'CPS', 'PAC', 'PAI', 'UNT', 'UNZ'];
+    if (nonQualified.includes(tag) || elements.length < 2) return '';
+
+    if (tag === 'PIA' && elements.length >= 3 && elements[2]) {
+        const piaComps = splitEdifact(elements[2], compSep);
+        if (piaComps[1] && ['IN', 'SA', 'EN', 'NB'].includes(piaComps[1].trim())) {
+            return piaComps[1].trim();
+        }
+    }
+
+    if (!elements[1]) return '';
+    const comps = splitEdifact(elements[1], compSep);
+    return comps[0] ? comps[0].trim() : '';
+}
+
+function resolveTargetXmlPath(section, rule, tag, qualifier, posCode, activeGroupContext) {
+    let sectionPrefix = xmlContainers.headerName;
+    if (section === 'ENVELOPE') sectionPrefix = xmlContainers.rootName;
+    else if (section === 'PACKAGING' || section === 'DETAIL') sectionPrefix = xmlContainers.itemName;
+    else if (section === 'SUMMARY') sectionPrefix = xmlContainers.summaryName;
+
+    if (!rule || !rule.field) {
+        const ctxPrefix = activeGroupContext ? `${activeGroupContext}_` : '';
+        return `${sectionPrefix}.${ctxPrefix}${tag}_${qualifier ? qualifier + '_' : ''}${posCode.replace('.', '_')}`;
+    }
+
+    const candidates = rule.field.split('|');
+    for (const cand of candidates) {
+        const fullCand = `${sectionPrefix}.${cand}`;
+        if (existingXmlMap.has(fullCand)) return fullCand;
+    }
+
+    let chosen = candidates[0];
+    if (candidates.length > 1) {
+        if (activeMessageType === 'DESADV') {
+            chosen = candidates.find(c => /Despatch|Document|Delivery|SSCC/i.test(c)) || candidates[0];
+        } else if (activeMessageType === 'INVOIC') {
+            chosen = candidates.find(c => /Invoice|NetAmount|Tax/i.test(c)) || candidates[candidates.length - 1];
+        }
+    }
+    return `${sectionPrefix}.${chosen}`;
+}
+
+function analyzeEdifactFiles() {
+    const fieldsMap = new Map();
+    mergedEdiTemplates.clear();
+    let orderCounter = 0;
+
+    // En-tête UNH par défaut selon le flux
+    if (activeMessageType === 'ORDERS') ediUnhHeaderRaw = "UNH+1+ORDERS:D:96A:UN:EAN008'";
+    else if (activeMessageType === 'DESADV') ediUnhHeaderRaw = "UNH+1+DESADV:D:96A:UN:EAN005'";
+    else if (activeMessageType === 'INVOIC') ediUnhHeaderRaw = "UNH+1+INVOIC:D:96A:UN:EAN008'";
+
+    loadedEdiFiles.forEach(fileObj => {
+        let content = fileObj.content.trim();
+        if (!content) return;
+
+        let compSep = ':', elemSep = '+', releaseChar = '?', segTerm = "'";
+        if (content.startsWith('UNA') && content.length >= 9) {
+            compSep = content[3];
+            elemSep = content[4];
+            releaseChar = content[6];
+            segTerm = content[8];
+            content = content.substring(9).trim();
+        }
+
+        const rawSegments = splitEdifact(content, segTerm, releaseChar);
+        let currentSection = 'HEADER';
+        let activePartyQualifier = '';
+
+        rawSegments.forEach(rawSeg => {
+            const cleanSeg = rawSeg.replace(/[\r\n]+/g, '').trim();
+            if (!cleanSeg) return;
+
+            const elements = splitEdifact(cleanSeg, elemSep, releaseChar);
+            const tag = elements[0].trim().toUpperCase();
+
+            if (tag === 'UNH') {
+                ediUnhHeaderRaw = cleanSeg + "'";
+                return;
+            }
+            if (['UNT', 'UNZ', 'UNA'].includes(tag)) return;
+
+            let segSection = currentSection;
+            if (tag === 'UNB') {
+                segSection = 'ENVELOPE';
+            } else if (tag === 'UNS') {
+                currentSection = 'SUMMARY';
+                activePartyQualifier = '';
+                return;
+            } else if (tag === 'CPS') {
+                currentSection = 'PACKAGING';
+                segSection = 'PACKAGING';
+                activePartyQualifier = '';
+            } else if (tag === 'LIN') {
+                currentSection = 'DETAIL';
+                segSection = 'DETAIL';
+                activePartyQualifier = '';
+            } else if (tag === 'CNT' && currentSection !== 'SUMMARY') {
+                currentSection = 'SUMMARY';
+                segSection = 'SUMMARY';
+            }
+
+            const qualifier = extractQualifier(tag, elements, compSep);
+
+            if (segSection === 'HEADER') {
+                if (tag === 'NAD') {
+                    activePartyQualifier = qualifier || 'GEN';
+                } else if (['CUX', 'PAT', 'PAI', 'TDT', 'TOD', 'EQD', 'ALC'].includes(tag)) {
+                    activePartyQualifier = '';
+                }
+            }
+
+            const groupCtx = (segSection === 'HEADER' && activePartyQualifier && ['NAD', 'RFF', 'FTX', 'CTA', 'COM', 'LOC'].includes(tag))
+                ? `NAD+${activePartyQualifier}`
+                : '';
+
+            // 1. Enregistrement dans le Superset de segments EDIFACT (mergedEdiTemplates)
+            const segSigKey = `${segSection}|${groupCtx}|${tag}|${qualifier}`;
+            if (!mergedEdiTemplates.has(segSigKey)) {
+                mergedEdiTemplates.set(segSigKey, {
+                    sigKey: segSigKey,
+                    section: segSection,
+                    groupCtx: groupCtx,
+                    tag: tag,
+                    qualifier: qualifier,
+                    orderIndex: orderCounter++,
+                    maxElementIdx: elements.length - 1,
+                    elementsMap: new Map()
+                });
+            }
+
+            const segTemplate = mergedEdiTemplates.get(segSigKey);
+            if (elements.length - 1 > segTemplate.maxElementIdx) {
+                segTemplate.maxElementIdx = elements.length - 1;
+            }
+
+            for (let eIdx = 1; eIdx < elements.length; eIdx++) {
+                const elStr = elements[eIdx];
+                if (elStr === '') continue;
+
+                const subComps = splitEdifact(elStr, compSep, releaseChar);
+                if (!segTemplate.elementsMap.has(eIdx)) {
+                    segTemplate.elementsMap.set(eIdx, {
+                        maxCompIdx: subComps.length - 1,
+                        compsMap: new Map()
+                    });
+                }
+                const elEntry = segTemplate.elementsMap.get(eIdx);
+                if (subComps.length - 1 > elEntry.maxCompIdx) {
+                    elEntry.maxCompIdx = subComps.length - 1;
+                }
+
+                subComps.forEach((val, cIdx) => {
+                    const cleanVal = val.trim();
+                    if (!cleanVal) return;
+
+                    const posCode = `${tag}${String(eIdx).padStart(2, '0')}.${cIdx + 1}`;
+                    const isTech = isTechnicalQualifierPosition(tag, posCode);
+
+                    let rule = null;
+                    if (groupCtx) {
+                        rule = getContextualPartyRule(activePartyQualifier, tag, qualifier, posCode);
+                    }
+                    if (!rule) {
+                        const exactKey = `${segSection}||${tag}|${qualifier}|${posCode}`;
+                        const fallbackKey = `${segSection}||${tag}||${posCode}`;
+                        rule = UNIVERSAL_EDIFACT_RULES[exactKey] || UNIVERSAL_EDIFACT_RULES[fallbackKey] || null;
+                    }
+
+                    const isQualSlot = isTech || (rule && rule.role === 'QUAL');
+
+                    // Stockage du slot dans le modèle de segment EDIFACT
+                    if (!elEntry.compsMap.has(cIdx)) {
+                        elEntry.compsMap.set(cIdx, {
+                            posCode: posCode,
+                            isQual: isQualSlot,
+                            fixedVal: cleanVal,
+                            samples: new Set([cleanVal])
+                        });
+                    } else {
+                        const compSlot = elEntry.compsMap.get(cIdx);
+                        if (compSlot.samples.size < 4) compSlot.samples.add(cleanVal);
+                    }
+
+                    if (isQualSlot) return;
+
+                    // 2. Enregistrement dans la table de rapprochement XML
+                    const mapKey = `${segSection}|${groupCtx}|${tag}|${qualifier}|${posCode}`;
+                    if (!fieldsMap.has(mapKey)) {
+                        const targetXmlPath = resolveTargetXmlPath(segSection, rule, tag, qualifier, posCode, activePartyQualifier);
+                        const isCovered = existingXmlMap.has(targetXmlPath);
+                        const label = rule ? rule.label : `Champ ${tag}${qualifier ? '+' + qualifier : ''} (${posCode})`;
+
+                        fieldsMap.set(mapKey, {
+                            id: mapKey,
+                            section: segSection,
+                            groupCtx: groupCtx,
+                            tag: tag,
+                            qualifier: qualifier,
+                            posCode: posCode,
+                            label: label,
+                            filesSet: new Set(),
+                            samples: new Set(),
+                            rawSegmentSample: cleanSeg + segTerm,
+                            isCovered: isCovered,
+                            isXmlOnly: false,
+                            selectedForAdd: !isCovered,
+                            targetXmlPath: targetXmlPath
+                        });
+                    }
+
+                    const entry = fieldsMap.get(mapKey);
+                    entry.filesSet.add(fileObj.filename);
+                    if (entry.samples.size < 3) {
+                        entry.samples.add(cleanVal);
+                    }
+                });
+            }
+        });
+    });
+
+    // Ajout des balises présentes dans le XML de référence mais absentes des fichiers EDIFACT d'entrée
+    const coveredTargetPaths = new Set();
+    fieldsMap.forEach(item => {
+        if (item.isCovered) coveredTargetPaths.add(item.targetXmlPath);
+    });
+
+    existingXmlMap.forEach((meta, xmlPath) => {
+        if (!coveredTargetPaths.has(xmlPath)) {
+            const xmlOnlyKey = `XML_ONLY|${xmlPath}`;
+            fieldsMap.set(xmlOnlyKey, {
+                id: xmlOnlyKey,
+                section: meta.section,
+                groupCtx: '',
+                tag: 'XML',
+                qualifier: '',
+                posCode: '-',
+                label: `Balise présente dans le XML de référence`,
+                filesSet: new Set(),
+                samples: new Set(meta.sample ? [meta.sample] : ['(Balise vide)']),
+                rawSegmentSample: '',
+                isCovered: true,
+                isXmlOnly: true,
+                selectedForAdd: false,
+                targetXmlPath: xmlPath
+            });
+        }
+    });
+
+    const sectionOrder = { 'ENVELOPE': 0, 'HEADER': 1, 'PACKAGING': 2, 'DETAIL': 3, 'SUMMARY': 4 };
+    detectedFields = Array.from(fieldsMap.values()).sort((a, b) => {
+        if (a.isXmlOnly !== b.isXmlOnly) return a.isXmlOnly ? 1 : -1;
+        if (sectionOrder[a.section] !== sectionOrder[b.section]) {
+            return sectionOrder[a.section] - sectionOrder[b.section];
+        }
+        return a.id.localeCompare(b.id);
+    });
+
+    updateStats();
+}
+
+function updateStats() {
+    const ediFields = detectedFields.filter(f => !f.isXmlOnly);
+    const coveredCount = ediFields.filter(f => f.isCovered).length;
+    const missingCount = ediFields.filter(f => !f.isCovered).length;
+
+    document.getElementById('statFiles').textContent = loadedEdiFiles.length;
+    document.getElementById('statEdiSegments').textContent = mergedEdiTemplates.size;
+    document.getElementById('statXmlTotal').textContent = existingXmlMap.size;
+    document.getElementById('statTotalFields').textContent = ediFields.length;
+    document.getElementById('statCovered').textContent = coveredCount;
+    document.getElementById('statMissing').textContent = missingCount;
+}
+
+/**
+ * ============================================================================
+ * 5. GÉNÉRATEUR DE VALEURS ALÉATOIRES MÉTIERS & CONSTRUCTEUR .EDI DE RÉFÉRENCE
+ * ============================================================================
+ */
+function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randChoice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randDigits(len) {
+    let s = '';
+    for (let i = 0; i < len; i++) s += randInt(0, 9);
+    return s;
+}
+
+/**
+ * Génère une valeur aléatoire réaliste et syntaxiquement valide en EDIFACT D.96A
+ * selon le segment, son qualifiant, la position du sous-élément et les échantillons observés.
+ */
+function generateRandomEdiValue(tag, qualifier, posCode, compSlot, lineIndex = 1) {
+    if (compSlot && compSlot.isQual) {
+        return compSlot.fixedVal;
+    }
+
+    const sample = compSlot && compSlot.samples.size > 0 ? Array.from(compSlot.samples)[0] : '';
+
+    // 1. Enveloppe UNB
+    if (tag === 'UNB') {
+        if (posCode === 'UNB02.1' || posCode === 'UNB03.1') return '301' + randDigits(10);
+        if (posCode === 'UNB04.1') return `26${String(randInt(1, 12)).padStart(2, '0')}${String(randInt(1, 28)).padStart(2, '0')}${String(randInt(0, 23)).padStart(2, '0')}${randChoice(['00', '15', '30', '45'])}`;
+        if (posCode === 'UNB05.1') return String(randInt(100000, 999999)).padStart(10, '0');
+        return sample || '1';
+    }
+
+    // 2. BGM (Début de message)
+    if (tag === 'BGM') {
+        if (posCode === 'BGM01.1') return qualifier || (activeMessageType === 'DESADV' ? '351' : (activeMessageType === 'INVOIC' ? '380' : '220'));
+        if (posCode === 'BGM02.1') {
+            const prefix = activeMessageType === 'DESADV' ? 'BL' : (activeMessageType === 'INVOIC' ? 'FA' : 'ORDER');
+            return `${prefix}${randDigits(6)}`;
+        }
+        if (posCode === 'BGM03.1') return randChoice(['6', '9']);
+    }
+
+    // 3. DTM (Dates et heures)
+    if (tag === 'DTM' && posCode === 'DTM01.2') {
+        const year = qualifier === '361' || qualifier === '36' ? 2027 : 2026;
+        const month = String(randInt(1, 12)).padStart(2, '0');
+        const day = String(randInt(1, 28)).padStart(2, '0');
+        if (sample.length === 12) {
+            const hour = String(randInt(6, 18)).padStart(2, '0');
+            const min = randChoice(['00', '15', '30', '45']);
+            return `${year}${month}${day}${hour}${min}`;
+        }
+        return `${year}${month}${day}`;
+    }
+
+    // 4. FTX (Textes libres)
+    if (tag === 'FTX' && posCode.startsWith('FTX04')) {
+        if (qualifier === 'PUR') return `CONTACT CLIENT TEL 04 ${randDigits(2)} ${randDigits(2)} ${randDigits(2)} ${randDigits(2)}`;
+        if (qualifier === 'DEL') return `LIVRAISON QUAI N ${randInt(1, 12)} AVANT ${randInt(8, 15)}H00`;
+        if (qualifier === 'REG') return `PENALITES DE RETARD 3 FOIS TAUX LEGAL - INDEMNITE 40 EUR`;
+        return `COMMENTAIRE LIBRE REF ${randDigits(4)}`;
+    }
+
+    // 5. RFF (Références)
+    if (tag === 'RFF') {
+        if (posCode === 'RFF01.2') {
+            if (qualifier === 'VA') return `FR${randDigits(11)}`;
+            if (qualifier === 'VN') return `SUPP${randDigits(5)}`;
+            if (qualifier === 'ON') return `CMD${randDigits(6)}`;
+            if (qualifier === 'DQ' || qualifier === 'AAK') return `BL${randDigits(6)}`;
+            if (qualifier === 'IV') return `FAC${randDigits(6)}`;
+            return `REF${randDigits(5)}`;
+        }
+        if (posCode === 'RFF01.3') return String(lineIndex);
+    }
+
+    // 6. NAD (Partenaires : BY, SU, DP, IV, UC)
+    if (tag === 'NAD') {
+        if (posCode === 'NAD02.1') return '302' + randDigits(10);
+        if (posCode === 'NAD04.1') {
+            const roleNames = {
+                'BY': ['CENTRALE ACHAT SUD', 'DISTRIBUTION HORIZON SAS', 'GROUPE RETAIL FRANCE'],
+                'SU': ['CHOCOLATERIE DU ROUSSILLON', 'INDUSTRIE ALIMENTAIRE OCCITANE', 'CONFISERIE MEDITERRANEE'],
+                'DP': ['PLATEFORME LOGISTIQUE NORD', 'ENTREPOT REGIONAL GARONNE', 'HUB LOGISTIQUE ROUSSILLON'],
+                'IV': ['CENTRALE FACTURATION', 'SERVICE COMPTABILITE FOURNISSEURS'],
+                'UC': ['HYPERMARCHE SOLEIL', 'MAGASIN CENTRE VILLE']
+            };
+            return randChoice(roleNames[qualifier] || ['PARTENAIRE COMMERCIAL SAS']);
+        }
+        if (posCode === 'NAD05.1') return `${randInt(1, 150)} AVENUE DE L INDUSTRIE ZAC ${randInt(1, 5)}`;
+        if (posCode === 'NAD06.1') return randChoice(['PERPIGNAN', 'TOULOUSE', 'MONTPELLIER', 'LYON', 'BORDEAUX', 'NARBONNE']);
+        if (posCode === 'NAD08.1') return randChoice(['66000', '31000', '34000', '69000', '33000', '11100']);
+        if (posCode === 'NAD09.1') return randChoice(['FR', 'ES', 'BE']);
+    }
+
+    // 7. CUX, TDT, TOD, EQD, PAT, PAI
+    if (tag === 'CUX' && posCode === 'CUX01.2') return 'EUR';
+    if (tag === 'TDT') {
+        if (posCode === 'TDT03.1') return randChoice(['30', '20', '10']);
+        if (posCode === 'TDT05.1') return `TRP${randDigits(4)}`;
+        if (posCode === 'TDT05.4') return randChoice(['TRANSPORTS EXPRESS SAS', 'LOGISTIQUE EUROPE', 'FRET OCCITANIE']);
+    }
+    if (tag === 'TOD') {
+        if (posCode === 'TOD01.1') return sample || '10E';
+        if (posCode === 'TOD02.1') return sample || 'X1E';
+        if (posCode === 'TOD03.1') return randChoice(['DDP', 'EXW', 'FCA']);
+    }
+    if (tag === 'EQD' && posCode === 'EQD02.1') {
+        return `FG-${randDigits(3)}-`.replace('', 'TR');
+    }
+
+    // 8. CPS, PAC, PCI, GIN, MEA
+    if (tag === 'CPS') {
+        if (posCode === 'CPS01.1') return String(lineIndex);
+        if (posCode === 'CPS02.1') return '1';
+        if (posCode === 'CPS03.1') return randChoice(['1', '3', '4']);
+    }
+    if (tag === 'PAC') {
+        if (posCode === 'PAC01.1') return String(randInt(1, 120));
+        if (posCode === 'PAC02.1') return sample || '3';
+        if (posCode === 'PAC03.1') return randChoice(['CS', 'X1', '201', 'CT']);
+        if (posCode === 'PAC03.4') return `SSCC${String(lineIndex).padStart(4, '0')}${randDigits(6)}`;
+    }
+    if (tag === 'GIN') {
+        if (qualifier === 'BJ') return `330123456${randDigits(9)}`;
+        if (qualifier === 'BX') return `LOT-2026-${randDigits(4)}`;
+    }
+    if (tag === 'MEA') {
+        if (posCode === 'MEA02.1') return sample || 'AAB';
+        if (posCode === 'MEA03.1') return 'KGM';
+        if (posCode === 'MEA03.2') return (randInt(50, 850) + randInt(10, 99) / 100).toFixed(2);
+    }
+
+    // 9. LIN, PIA, IMD, QTY, PRI, MOA, TAX, ALC, PCD, CNT
+    if (tag === 'LIN') {
+        if (posCode === 'LIN01.1') return String(lineIndex);
+        if (posCode === 'LIN03.1') return `30176204${randDigits(5)}`;
+    }
+    if (tag === 'PIA' && posCode === 'PIA02.1') {
+        if (qualifier === 'IN' || qualifier === '5') return `BUY-ART-${randDigits(4)}`;
+        if (qualifier === 'EN') return `30176299${randDigits(5)}`;
+        return `SUP-ART-${randDigits(4)}`;
+    }
+    if (tag === 'IMD' && posCode === 'IMD03.4') {
+        const products = [
+            'TABLETTE CHOCOLAT NOIR 70% BIO 100G',
+            'COFFRET PRALINES ASSORTIES 250G',
+            'ROCHERS CHOCOLAT LAIT NOISETTES 180G',
+            'OURSONS GUIMAUVE CHOCOLAT 150G',
+            'PISTOLES CHOCOLAT COUVERTURE 5KG'
+        ];
+        return products[(lineIndex - 1) % products.length];
+    }
+    if (tag === 'QTY') {
+        if (posCode === 'QTY01.2') {
+            if (qualifier === '59') return String(randChoice([12, 16, 18, 24, 30, 36]));
+            if (qualifier === '192') return String(randChoice([6, 12, 24]));
+            return String(randChoice([120, 240, 360, 480, 720, 960, 1440]));
+        }
+        if (posCode === 'QTY01.3') return sample || 'PCE';
+    }
+    if (tag === 'PRI') {
+        if (posCode === 'PRI01.2') return (randInt(80, 450) / 100 + randInt(1, 9) / 1000).toFixed(3);
+        if (posCode === 'PRI01.4') return sample || 'NTP';
+        if (posCode === 'PRI01.6') return sample || 'PCE';
+    }
+    if (tag === 'MOA' && posCode === 'MOA01.2') {
+        return (randInt(150, 4500) + randInt(10, 99) / 100).toFixed(2);
+    }
+    if (tag === 'TAX') {
+        if (posCode === 'TAX05.4') return randChoice(['5.5', '20', '10']);
+        if (posCode === 'TAX06.1') return 'S';
+    }
+    if (tag === 'PCD' && posCode === 'PCD01.2') {
+        return (randInt(2, 15) + 0.5).toFixed(2);
+    }
+    if (tag === 'CNT' && posCode === 'CNT01.2') {
+        return String(lineIndex);
+    }
+
+    return sample || `VAL${randDigits(4)}`;
+}
+
+/**
+ * Assemble une ligne de segment EDIFACT à partir de son gabarit fusionné (mergedEdiTemplates)
+ */
+function escapeEdifactValue(value) {
+    return String(value).replace(/\?|\+|:|'/g, ch => '?' + ch);
+}
+
+function serializeMergedSegment(segTemplate, lineIndex = 1) {
+    const elementsOut = [segTemplate.tag];
+    for (let eIdx = 1; eIdx <= segTemplate.maxElementIdx; eIdx++) {
+        const elEntry = segTemplate.elementsMap.get(eIdx);
+        if (!elEntry) {
+            elementsOut.push('');
+            continue;
+        }
+        const compsOut = [];
+        for (let cIdx = 0; cIdx <= elEntry.maxCompIdx; cIdx++) {
+            const compSlot = elEntry.compsMap.get(cIdx);
+            if (!compSlot) {
+                compsOut.push('');
+            } else {
+                compsOut.push(escapeEdifactValue(generateRandomEdiValue(segTemplate.tag, segTemplate.qualifier, compSlot.posCode, compSlot, lineIndex)));
+            }
+        }
+        // Nettoyage des séparateurs ':' de fin inutiles
+        while (compsOut.length > 0 && compsOut[compsOut.length - 1] === '') {
+            compsOut.pop();
+        }
+        elementsOut.push(compsOut.join(':'));
+    }
+    // Nettoyage des séparateurs '+' de fin inutiles
+    while (elementsOut.length > 1 && elementsOut[elementsOut.length - 1] === '') {
+        elementsOut.pop();
+    }
+    return elementsOut.join('+') + "'";
+}
+
+/**
+ * Construit le fichier .EDI de référence complet avec toutes les balises détectées
+ * et des valeurs aléatoires réalistes, plus le recalcul exact du compteur UNT.
+ */
+function buildCompletedEdi() {
+    const numLines = Math.max(1, Math.min(20, parseInt(ediLineCountInput.value, 10) || 3));
+    const includeXmlExtras = ediIncludeXmlOnlySegments.checked;
+
+    const allTemplates = Array.from(mergedEdiTemplates.values()).sort((a, b) => a.orderIndex - b.orderIndex);
+    const envSegs = allTemplates.filter(t => t.section === 'ENVELOPE');
+    const headerSegs = allTemplates.filter(t => t.section === 'HEADER');
+    const packSegs = allTemplates.filter(t => t.section === 'PACKAGING');
+    const detailSegs = allTemplates.filter(t => t.section === 'DETAIL');
+    const summarySegs = allTemplates.filter(t => t.section === 'SUMMARY');
+
+    const outputLines = [];
+    const controlRef = String(randInt(100000, 999999)).padStart(10, '0');
+
+    // 1. Segment UNB (s'il était présent dans les fichiers d'entrée ou si option XML cochée)
+    let hasUnb = false;
+    if (envSegs.length > 0) {
+        hasUnb = true;
+        envSegs.forEach(seg => outputLines.push(serializeMergedSegment(seg, 1)));
+    } else if (includeXmlExtras) {
+        hasUnb = true;
+        outputLines.push(`UNB+UNOC:3+301${randDigits(10)}:14+302${randDigits(10)}:14+261028:1120+${controlRef}+++++PRODUCTION'`);
+    }
+
+    // 2. Segment UNH (Début du message comptabilisé dans UNT)
+    const msgRef = String(randInt(1000, 9999)) + String(randInt(100, 999));
+    const msgSegments = [];
+    const unhParts = splitEdifact(ediUnhHeaderRaw.replace(/'$/, ''), '+');
+    if (unhParts.length >= 2 && unhParts[1]) {
+        unhParts[1] = msgRef;
+        msgSegments.push(unhParts.join('+') + "'");
+    } else {
+        msgSegments.push(ediUnhHeaderRaw);
+    }
+
+    // 3. Section HEADER
+    headerSegs.forEach(seg => {
+        if (seg.tag === 'NAD' && msgSegments.length > 1 && !msgSegments[msgSegments.length - 1].startsWith('NAD')) {
+            msgSegments.push(''); // Ligne vide d'aération visuelle comme dans order_anonyme.txt
+        }
+        msgSegments.push(serializeMergedSegment(seg, 1));
+    });
+
+    // Enrichissement optionnel depuis les balises XML de référence absentes de l'EDI d'entrée
+    if (includeXmlExtras) {
+        const presentHeaderSigs = new Set(headerSegs.map(s => `${s.tag}|${s.qualifier}`));
+        if (existingXmlMap.has(`${xmlContainers.headerName}.LatestDeliveryDate`) && !presentHeaderSigs.has('DTM|63')) {
+            msgSegments.push(`DTM+63:202611251200:203'`);
+        }
+        if (existingXmlMap.has(`${xmlContainers.headerName}.EarliestDeliveryDate`) && !presentHeaderSigs.has('DTM|64')) {
+            msgSegments.push(`DTM+64:20261118:102'`);
+        }
+        if (existingXmlMap.has(`${xmlContainers.headerName}.UltimateConsignee.GLN`) && !presentHeaderSigs.has('NAD|UC')) {
+            msgSegments.push(`NAD+UC+302${randDigits(10)}::9++CLIENT FINAL SAS+10 RUE DU COMMERCE+PERPIGNAN++66000+FR'`);
+        }
+        if (existingXmlMap.has(`${xmlContainers.headerName}.Invoicee.GLN`) && !presentHeaderSigs.has('NAD|IV')) {
+            msgSegments.push(`NAD+IV+302${randDigits(10)}::9++CENTRALE FACTURATION SAS+25 AVENUE DES FINANCES+LYON++69000+FR'`);
+        }
+    }
+
+    // 4. Section PACKAGING (DESADV CPS / PAC)
+    if (packSegs.length > 0) {
+        msgSegments.push('');
+        packSegs.forEach(seg => {
+            msgSegments.push(serializeMergedSegment(seg, 1));
+        });
+    }
+
+    // 5. Boucle Lignes Articles (DETAIL - LIN)
+    const presentDetailSigs = new Set(detailSegs.map(s => `${s.tag}|${s.qualifier}`));
+    for (let lineIdx = 1; lineIdx <= numLines; lineIdx++) {
+        msgSegments.push('');
+        detailSegs.forEach(seg => {
+            msgSegments.push(serializeMergedSegment(seg, lineIdx));
+        });
+
+        if (includeXmlExtras && activeMessageType === 'ORDERS') {
+            if (existingXmlMap.has(`${xmlContainers.itemName}.BuyerArticleNumber`) && !presentDetailSigs.has('PIA|5') && !presentDetailSigs.has('PIA|IN')) {
+                msgSegments.push(`PIA+5+BUY-ART-${randDigits(4)}:IN'`);
+            }
+            if (existingXmlMap.has(`${xmlContainers.itemName}.SupplierArticleNumber`) && !presentDetailSigs.has('PIA|1') && !presentDetailSigs.has('PIA|SA')) {
+                msgSegments.push(`PIA+1+SUP-ART-${randDigits(4)}:SA'`);
+            }
+            if (existingXmlMap.has(`${xmlContainers.itemName}.ArticleDescription`) && !presentDetailSigs.has('IMD|F')) {
+                msgSegments.push(`IMD+F++:::ARTICLE CHOCOLAT REFERENCE ${lineIdx}'`);
+            }
+            if (existingXmlMap.has(`${xmlContainers.itemName}.QuantityFreeItems`) && !presentDetailSigs.has('QTY|192')) {
+                msgSegments.push(`QTY+192:12:PCE'`);
+            }
+            if (existingXmlMap.has(`${xmlContainers.itemName}.PlaceOfDelivery`) && !presentDetailSigs.has('LOC|7')) {
+                msgSegments.push(`LOC+7+302${randDigits(10)}::9'`);
+            }
+            if (existingXmlMap.has(`${xmlContainers.itemName}.DeliveryDate`) && !presentDetailSigs.has('DTM|2')) {
+                msgSegments.push(`DTM+2:20261120:102'`);
+            }
+        }
+    }
+
+    // 6. Section SUMMARY (UNS+S et totaux)
+    msgSegments.push('');
+    msgSegments.push("UNS+S'");
+    summarySegs.forEach(seg => {
+        msgSegments.push(serializeMergedSegment(seg, numLines));
+    });
+
+    // 7. Calcul exact du nombre de segments (de UNH inclus à UNT inclus, hors lignes vides)
+    const actualSegmentCount = msgSegments.filter(line => line.trim() !== '').length + 1;
+    msgSegments.push(`UNT+${actualSegmentCount}+${msgRef}'`);
+
+    const finalLines = [...outputLines, ...msgSegments];
+    if (hasUnb) {
+        finalLines.push(`UNZ+1+${controlRef}'`);
+    }
+
+    return finalLines.join('\r\n') + '\r\n';
+}
+
+/**
+ * ============================================================================
+ * 6. RENDU DU TABLEAU INTERACTIF
+ * ============================================================================
+ */
+function renderTable() {
+    const search = searchInput.value.toLowerCase().trim();
+    const stFilter = statusFilter.value;
+    const secFilter = sectionFilter.value;
+    const totalFiles = loadedEdiFiles.length || 1;
+
+    tableBody.innerHTML = '';
+
+    const filtered = detectedFields.filter(item => {
+        if (secFilter !== 'ALL' && item.section !== secFilter) return false;
+
+        if (stFilter === 'ALL_EDI' && item.isXmlOnly) return false;
+        if (stFilter === 'MISSING' && (item.isCovered || item.isXmlOnly)) return false;
+        if (stFilter === 'COVERED' && (!item.isCovered || item.isXmlOnly)) return false;
+
+        if (!search) return true;
+        return item.posCode.toLowerCase().includes(search) ||
+               item.qualifier.toLowerCase().includes(search) ||
+               item.groupCtx.toLowerCase().includes(search) ||
+               item.label.toLowerCase().includes(search) ||
+               item.targetXmlPath.toLowerCase().includes(search);
+    });
+
+    filtered.forEach(item => {
+        const tr = document.createElement('tr');
+        if (!item.isCovered && !item.isXmlOnly) tr.classList.add('row-missing');
+        if (item.isXmlOnly) tr.classList.add('row-xmlonly');
+
+        let secBadge = `<span class="badge badge-header">${escapeHtml(xmlContainers.headerName)}</span>`;
+        if (item.section === 'ENVELOPE') secBadge = `<span class="badge badge-env">${escapeHtml(xmlContainers.rootName)} (Racine)</span>`;
+        else if (item.section === 'PACKAGING') secBadge = `<span class="badge badge-pack">CPS/PAC (${escapeHtml(xmlContainers.itemName)})</span>`;
+        else if (item.section === 'DETAIL') secBadge = `<span class="badge badge-detail">${escapeHtml(xmlContainers.itemName)}</span>`;
+        else if (item.section === 'SUMMARY') secBadge = `<span class="badge badge-summary">${escapeHtml(xmlContainers.summaryName)}</span>`;
+
+        let statusBadge = '<span class="badge badge-ok">✓ Présent dans XML</span>';
+        if (item.isXmlOnly) {
+            statusBadge = '<span class="badge badge-xmlonly">ℹ XML Réf. uniquement</span>';
+        } else if (!item.isCovered) {
+            statusBadge = '<span class="badge badge-missing">+ Manquant (À ajouter)</span>';
+        }
+
+        const samplesStr = Array.from(item.samples).map(s => escapeHtml(s)).join(' | ');
+        const fileCount = item.filesSet.size;
+        const pct = item.isXmlOnly ? '-' : `${fileCount}/${totalFiles} (${Math.round((fileCount / totalFiles) * 100)}%)`;
+
+        const fullDisplayPath = item.section === 'ENVELOPE'
+            ? item.targetXmlPath
+            : `${xmlContainers.rootName}.${xmlContainers.docName}.${item.targetXmlPath}`;
+
+        tr.innerHTML = `
+            <td style="text-align: center;">
+                <input type="checkbox" data-id="${escapeHtml(item.id)}" class="chk-add"
+                    ${item.selectedForAdd ? 'checked' : ''}
+                    ${(item.isCovered || item.isXmlOnly) ? 'disabled' : ''}>
+            </td>
+            <td>${secBadge}</td>
+            <td>
+                <span class="pos-code">${escapeHtml(item.posCode)}</span>
+                ${item.qualifier ? `<span class="qual-code" title="Qualifiant">${escapeHtml(item.qualifier)}</span>` : ''}
+                ${item.groupCtx ? `<span class="ctx-code" title="Groupe parent">${escapeHtml(item.groupCtx)}</span>` : ''}
+            </td>
+            <td>
+                <div style="font-weight: 500;">${escapeHtml(item.label)}</div>
+                <div style="font-size: 0.76rem; color: #64748b; font-family: var(--font-mono);">Ex: ${samplesStr}</div>
+            </td>
+            <td style="font-size: 0.81rem; font-weight: 600; color: var(--secondary);">
+                ${pct}
+            </td>
+            <td>${statusBadge}</td>
+            <td>
+                ${(item.isCovered || item.isXmlOnly)
+                    ? `<code style="font-family: var(--font-mono); color: #15803d; font-weight: 600;">${escapeHtml(fullDisplayPath)}</code>`
+                    : `<input type="text" class="xml-input" data-id="${escapeHtml(item.id)}" value="${escapeHtml(item.targetXmlPath)}">`
+                }
+            </td>
+        `;
+
+        tableBody.appendChild(tr);
+    });
+
+    document.querySelectorAll('.chk-add').forEach(chk => {
+        chk.addEventListener('change', e => {
+            const id = e.target.getAttribute('data-id');
+            const field = detectedFields.find(f => f.id === id);
+            if (field) field.selectedForAdd = e.target.checked;
+        });
+    });
+
+    document.querySelectorAll('.xml-input').forEach(inp => {
+        inp.addEventListener('input', e => {
+            const id = e.target.getAttribute('data-id');
+            const field = detectedFields.find(f => f.id === id);
+            if (field) {
+                field.targetXmlPath = e.target.value.trim();
+                field.isCovered = existingXmlMap.has(field.targetXmlPath);
+                updateStats();
+            }
+        });
+    });
+}
+
+/**
+ * ============================================================================
+ * 7. GÉNÉRATEUR DU FICHIER XML DE RÉFÉRENCE COMPLÉTÉ
+ * ============================================================================
+ */
+function buildCompletedXml() {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(currentXmlString, 'application/xml');
+    const useRandomValues = fillXmlRandomValues.checked;
+
+    const rootNode = xmlDoc.documentElement;
+    const docNode = xmlDoc.querySelector(xmlContainers.docName) || rootNode;
+    const headerNode = xmlDoc.querySelector(xmlContainers.headerName);
+    const detailNode = xmlDoc.querySelector(xmlContainers.detailName);
+    const allItemNodes = detailNode ? Array.from(detailNode.querySelectorAll(xmlContainers.itemName)) : [];
+    let summaryNode = xmlDoc.querySelector(xmlContainers.summaryName);
+
+    const fieldsToAdd = detectedFields.filter(f => !f.isXmlOnly && !f.isCovered && f.selectedForAdd && f.targetXmlPath);
+    const addedPathsTracker = new Set(existingXmlMap.keys());
+
+    fieldsToAdd.forEach(field => {
+        const cleanPath = field.targetXmlPath
+            .replace(new RegExp(`^${xmlContainers.rootName}\\.${xmlContainers.docName}\\.`), '')
+            .replace(new RegExp(`^${xmlContainers.docName}\\.`), '');
+
+        if (addedPathsTracker.has(cleanPath)) return;
+        addedPathsTracker.add(cleanPath);
+
+        const parts = cleanPath.split('.');
+        const fakeCompSlot = { isQual: false, samples: field.samples };
+        const sectionRoot = parts[0];
+
+        if (sectionRoot === xmlContainers.rootName && rootNode) {
+            const val = useRandomValues ? generateRandomEdiValue(field.tag, field.qualifier, field.posCode, fakeCompSlot, 1) : '';
+            insertDirectXmlNode(xmlDoc, rootNode, parts.slice(1), val);
+        } else if (sectionRoot === xmlContainers.headerName && headerNode) {
+            const val = useRandomValues ? generateRandomEdiValue(field.tag, field.qualifier, field.posCode, fakeCompSlot, 1) : '';
+            insertDirectXmlNode(xmlDoc, headerNode, parts.slice(1), val);
+        } else if (sectionRoot === xmlContainers.itemName && allItemNodes.length > 0) {
+            allItemNodes.forEach((itemNode, idx) => {
+                const val = useRandomValues ? generateRandomEdiValue(field.tag, field.qualifier, field.posCode, fakeCompSlot, idx + 1) : '';
+                insertDirectXmlNode(xmlDoc, itemNode, parts.slice(1), val);
+            });
+        } else if (sectionRoot === xmlContainers.summaryName && docNode) {
+            if (!summaryNode) {
+                summaryNode = xmlDoc.createElement(xmlContainers.summaryName);
+                docNode.appendChild(summaryNode);
+            }
+            const val = useRandomValues ? generateRandomEdiValue(field.tag, field.qualifier, field.posCode, fakeCompSlot, 1) : '';
+            insertDirectXmlNode(xmlDoc, summaryNode, parts.slice(1), val);
+        }
+    });
+
+    return prettyPrintXmlDom(xmlDoc);
+}
+
+function insertDirectXmlNode(xmlDoc, containerNode, pathParts, textValue) {
+    let currentNode = containerNode;
+
+    for (let i = 0; i < pathParts.length - 1; i++) {
+        const groupName = sanitizeXmlTagName(pathParts[i]);
+        let nextNode = Array.from(currentNode.children).find(c => c.tagName === groupName);
+        if (!nextNode) {
+            nextNode = xmlDoc.createElement(groupName);
+            currentNode.appendChild(nextNode);
+        }
+        currentNode = nextNode;
+    }
+
+    const tagName = sanitizeXmlTagName(pathParts[pathParts.length - 1]);
+    const exists = Array.from(currentNode.children).some(c => c.tagName === tagName);
+    if (!exists) {
+        const newEl = xmlDoc.createElement(tagName);
+        if (textValue) newEl.textContent = textValue;
+        currentNode.appendChild(newEl);
+    }
+}
+
+function sanitizeXmlTagName(name) {
+    return String(name).replace(/[^a-zA-Z0-9_-]/g, '_').replace(/^([0-9-])/, '_$1');
+}
+
+function prettyPrintXmlDom(xmlDoc) {
+    const lines = ['<?xml version="1.0" encoding="UTF-8"?>'];
+    serializeElementNode(xmlDoc.documentElement, 0, lines);
+    return lines.join('\n') + '\n';
+}
+
+function serializeElementNode(el, depth, lines) {
+    const indent = '   '.repeat(depth);
+    const tagName = el.tagName;
+    const childElements = Array.from(el.children);
+
+    if (childElements.length === 0) {
+        const text = el.textContent.trim();
+        if (text === '') {
+            lines.push(`${indent}<${tagName}/>`);
+        } else {
+            lines.push(`${indent}<${tagName}>${escapeXmlText(text)}</${tagName}>`);
+        }
+    } else {
+        lines.push(`${indent}<${tagName}>`);
+        childElements.forEach(child => serializeElementNode(child, depth + 1, lines));
+        lines.push(`${indent}</${tagName}>`);
+    }
+}
+
+function escapeXmlText(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function escapeHtml(str) {
+    return escapeXmlText(str).replace(/"/g, '&quot;');
+}
+
+// ============================================================================
+// 8. ACTIONS DES BOUTONS D'APERÇU ET D'EXPORT (.XML, .EDI, .CSV)
+// ============================================================================
+const previewModal = document.getElementById('previewModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalPreviewContent = document.getElementById('modalPreviewContent');
+const btnRegenerateRandom = document.getElementById('btnRegenerateRandom');
+const ediModalOptions = document.getElementById('ediModalOptions');
+
+// Aperçu XML
+document.getElementById('btnPreviewXml').addEventListener('click', () => {
+    currentModalMode = 'XML';
+    modalTitle.textContent = `Aperçu du fichier XML de Référence complété (${activeMessageType})`;
+    ediModalOptions.classList.add('hidden');
+    btnRegenerateRandom.classList.toggle('hidden', !fillXmlRandomValues.checked);
+    modalPreviewContent.textContent = buildCompletedXml();
+    previewModal.classList.remove('hidden');
+});
+
+// Aperçu EDI
+document.getElementById('btnPreviewEdi').addEventListener('click', () => {
+    currentModalMode = 'EDI';
+    modalTitle.textContent = `Aperçu du fichier .EDI de Référence complété avec valeurs aléatoires (${activeMessageType})`;
+    ediModalOptions.classList.remove('hidden');
+    btnRegenerateRandom.classList.remove('hidden');
+    modalPreviewContent.textContent = buildCompletedEdi();
+    previewModal.classList.remove('hidden');
+});
+
+// Régénération aléatoire à la volée dans la modal
+btnRegenerateRandom.addEventListener('click', () => {
+    if (currentModalMode === 'EDI') {
+        modalPreviewContent.textContent = buildCompletedEdi();
+    } else {
+        modalPreviewContent.textContent = buildCompletedXml();
+    }
+});
+
+ediLineCountInput.addEventListener('change', () => {
+    if (currentModalMode === 'EDI') modalPreviewContent.textContent = buildCompletedEdi();
+});
+ediIncludeXmlOnlySegments.addEventListener('change', () => {
+    if (currentModalMode === 'EDI') modalPreviewContent.textContent = buildCompletedEdi();
+});
+
+// Copier le contenu de la modal
+document.getElementById('btnCopyModalContent').addEventListener('click', () => {
+    const content = modalPreviewContent.textContent;
+    navigator.clipboard.writeText(content).then(() => {
+        const btn = document.getElementById('btnCopyModalContent');
+        const oldText = btn.textContent;
+        btn.textContent = '✓ Copié !';
+        setTimeout(() => { btn.textContent = oldText; }, 1800);
+    });
+});
+
+// Télécharger XML de Référence complété
+document.getElementById('btnExportXml').addEventListener('click', () => {
+    const completedXml = buildCompletedXml();
+    const blob = new Blob([completedXml], { type: 'application/xml;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `BW_${activeMessageType.toLowerCase()}_pivot_reference_completed.xml`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+
+// Télécharger .EDI de Référence complété
+document.getElementById('btnExportEdi').addEventListener('click', () => {
+    const completedEdi = buildCompletedEdi();
+    const blob = new Blob([completedEdi], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `BW_${activeMessageType.toLowerCase()}_reference_completed.edi`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+
+// Exporter Matrice de Mapping CSV
+document.getElementById('btnExportCsv').addEventListener('click', () => {
+    if (detectedFields.length === 0) return;
+    const totalFiles = loadedEdiFiles.length || 1;
+    const headers = [
+        'Flux EDIFACT',
+        'Section',
+        'Groupe Contextuel',
+        'Segment',
+        'Qualifiant',
+        'Position EDIFACT',
+        'Signification Métier',
+        'Statut Couverture XML',
+        'Chemin Balise XML Cible',
+        'Présence Fichiers EDI',
+        'Exemples de Valeurs',
+        'Segment Brut Exemple'
+    ];
+
+    const rows = [headers.join(';')];
+    detectedFields.forEach(item => {
+        let statusStr = 'Déjà présent dans XML';
+        if (item.isXmlOnly) statusStr = 'Présent dans XML uniquement';
+        else if (!item.isCovered) statusStr = item.selectedForAdd ? 'Ajouté au XML complété' : 'Manquant ignoré';
+
+        const fullPath = item.section === 'ENVELOPE'
+            ? item.targetXmlPath
+            : `${xmlContainers.rootName}.${xmlContainers.docName}.${item.targetXmlPath}`;
+        const samplesStr = Array.from(item.samples).join(' | ');
+
+        const row = [
+            `"${activeMessageType}"`,
+            `"${item.section}"`,
+            `"${item.groupCtx}"`,
+            `"${item.tag}"`,
+            `"${item.qualifier}"`,
+            `"${item.posCode}"`,
+            `"${item.label.replace(/"/g, '""')}"`,
+            `"${statusStr}"`,
+            `"${fullPath}"`,
+            `"${item.isXmlOnly ? '0' : item.filesSet.size}/${totalFiles}"`,
+            `"${samplesStr.replace(/"/g, '""')}"`,
+            `"${item.rawSegmentSample.replace(/"/g, '""')}"`
+        ];
+        rows.push(row.join(';'));
+    });
+
+    const csvContent = '\uFEFF' + rows.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Matrice_Mapping_${activeMessageType}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+
+/**
+ * ============================================================================
+ * 9. JEUX DE DONNÉES DE DÉMONSTRATION (ORDERS, DESADV, INVOIC)
+ * ============================================================================
+ */
+function loadDemoScenario(type) {
+    customXmlLoaded = false;
+    switchMessageType(type, false);
+
+    if (type === 'ORDERS') {
+        const sampleOrders = `UNH+1+ORDERS:D:96A:UN:EAN008'
+BGM+220::9+ORDER00001+6'
+DTM+137:20260305:102'
+DTM+2:202603120001:203'
+FTX+PUR+1++CONTACT CLIENT TEL XX XX XX XX XX'
+RFF+VN:SUPP00001'
+DTM+171:20260305:102'
+NAD+BY+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999'
+NAD+SU+8888888888888::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+CITY++99999+FR'
+NAD+DP+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999'
+CUX+2:EUR:9'
+TDT+20++30'
+TOD+10E+X1E'
+LIN+1++ARTICLE0001:EN'
+QTY+59:30:PCE'
+QTY+21:480:PCE'
+DTM+361:20270531:102'
+PRI+AAA:0.958::NTP::PCE'
+PRI+AAB:0.953::NTP::PCE'
+PAC+16+3+CS:::SSCC0000000001'
+TAX+7+VAT+++:::5.5+S'
+LIN+4++ARTICLE0004:EN'
+QTY+59:16:PCE'
+QTY+21:3600:PCE'
+DTM+361:20261107:102'
+PRI+AAA:1.606::NTP::PCE'
+PRI+AAB:1.601::NTP::PCE'
+PAC+1+3+X1::9:SSCC0000000004'
+TAX+7+VAT+++:::5.5+S'
+UNS+S'
+UNT+30+1'`;
+        loadedEdiFiles = [{ filename: 'order_anonyme.txt', content: sampleOrders }];
+    } else if (type === 'DESADV') {
+        const sampleDesadv = `UNB+UNOC:3+8888888888888:14+9999999999999:14+260310:1430+0000000098'
+UNH+1+DESADV:D:96A:UN:EAN005'
+BGM+351::9+BL20260998+9'
+DTM+137:20260310:102'
+DTM+11:202603101430:203'
+DTM+2:202603120800:203'
+RFF+ON:ORDER00001'
+RFF+VN:SUPP00001'
+NAD+BY+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999+FR'
+NAD+SU+8888888888888::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+PERPIGNAN++66000+FR'
+NAD+DP+9999999999999::9++PLATEFORME LOGISTIQUE SUD+AVENUE DE L EUROPE+CITY++99999+FR'
+TDT+20++30++TRANSPORTS EXPRESS:::TRANSPORT EXPRESS SAS'
+EQD+TE+AA-123-BB'
+CPS+1++4'
+PAC+1++201::9'
+MEA+PD+AAB+KGM:452.50'
+PCI+33E'
+GIN+BJ+330123456000000018'
+LIN+1++ARTICLE0001:EN'
+PIA+1+ART-SUPP-01:SA'
+IMD+F++:::TABLETTE CHOCOLAT NOIR 70% 100G'
+QTY+12:480:PCE'
+QTY+21:480:PCE'
+DTM+361:20270531:102'
+DTM+94:20260215:102'
+GIN+BX+LOT-2026-089'
+RFF+ON:ORDER00001:1'
+CNT+2:1'
+UNT+28+1'
+UNZ+1+0000000098'`;
+        loadedEdiFiles = [{ filename: 'desadv_anonyme.txt', content: sampleDesadv }];
+    } else if (type === 'INVOIC') {
+        const sampleInvoic = `UNB+UNOC:3+8888888888888:14+9999999999999:14+260312:1800+0000000451'
+UNH+1+INVOIC:D:96A:UN:EAN008'
+BGM+380::9+FA202600451+9'
+DTM+137:20260312:102'
+DTM+35:20260312:102'
+DTM+140:20260430:102'
+PAI+::42'
+FTX+REG+++PAS D ESCOMPTE POUR PAIEMENT ANTICIPE - PENALITES 3 FOIS TAUX LEGAL'
+RFF+ON:ORDER00001'
+RFF+DQ:BL20260998'
+NAD+BY+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999+FR'
+RFF+VA:FR99999999999'
+NAD+SU+8888888888888::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+PERPIGNAN++66000+FR'
+RFF+VA:FR88888888888'
+NAD+IV+9999999999999::9++CUSTOMER ACCOUNTING+CUSTOMER ADDRESS+CITY++99999+FR'
+RFF+VA:FR99999999999'
+CUX+2:EUR:4'
+PAT+1++5:3:D:45'
+LIN+1++ARTICLE0001:EN'
+PIA+1+ART-SUPP-01:SA'
+IMD+F++:::TABLETTE CHOCOLAT NOIR 70% 100G'
+QTY+47:480:PCE'
+MOA+203:459.84:EUR'
+PRI+AAA:0.958::NTP::PCE'
+PRI+AAB:1.050::NTP::PCE'
+ALC+A++++TD'
+PCD+3:8.76'
+MOA+204:44.16:EUR'
+RFF+ON:ORDER00001:1'
+RFF+DQ:BL20260998'
+TAX+7+VAT+++:::5.5+S'
+MOA+124:25.29:EUR'
+UNS+S'
+CNT+2:1'
+MOA+79:459.84:EUR'
+MOA+125:459.84:EUR'
+MOA+176:25.29:EUR'
+MOA+77:485.13:EUR'
+MOA+139:485.13:EUR'
+TAX+7+VAT+++:::5.5+S'
+MOA+124:25.29:EUR'
+UNT+41+1'
+UNZ+1+0000000451'`;
+        loadedEdiFiles = [{ filename: 'invoic_anonyme.txt', content: sampleInvoic }];
+    }
+
+    document.getElementById('ediStatusText').innerHTML =
+        `Simulation active : <strong>1 fichier ${type}</strong> analysé contre le XML de référence.`;
+    analyzeEdifactFiles();
+    resultsArea.classList.remove('hidden');
+    renderTable();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    loadDemoScenario('ORDERS');
+});
+</script>
+
+</body>
+</html>
