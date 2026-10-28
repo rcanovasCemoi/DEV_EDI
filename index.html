@@ -2024,10 +2024,43 @@ function buildMoveOptionsList(excludePath, extraOptions) {
 function buildMoveSelectHtml(selectClass, dataId, dataPath, currentParentPath, destinations) {
     return `<select class="move-select ${selectClass}" data-id="${escapeHtml(dataId)}" data-path="${escapeHtml(dataPath || '')}" title="Déplacer sous cette balise mère">
         <option value="">— Déplacer sous… —</option>
+        <option value="__ADD_LEVEL__">+ Ajouter un niveau…</option>
         ${destinations.map(p =>
             `<option value="${escapeHtml(p)}" ${p === currentParentPath ? 'disabled' : ''}>${escapeHtml(p)}</option>`
         ).join('')}
       </select>`;
+}
+
+/**
+ * Insère une nouvelle balise mère intermédiaire juste sous currentParentPath,
+ * puis déplace la balise (et son sous-arbre pour une mère) à l'intérieur.
+ * Retourne le nom saisi, ou null si annulé / invalide.
+ */
+function insertIntermediateLevel(currentParentPath, movedPath, isAncestor) {
+    const newName = prompt('Nom de la nouvelle balise mère (intermédiaire) :', 'NewGroup');
+    if (!newName) return null;
+    const cleanName = newName.trim().replace(/\./g, '');
+    if (!cleanName) return null;
+
+    const parentParts = splitXmlPath(currentParentPath);
+    parentParts.push(cleanName);
+    const newGroupPath = parentParts.join('.');
+
+    const movedParts = splitXmlPath(movedPath);
+    const movedName = movedParts[movedParts.length - 1];
+    const newMovedPath = newGroupPath + '.' + movedName;
+
+    const prefix = movedPath + '.';
+    detectedFields.forEach(f => {
+        if (f.targetXmlPath === movedPath) {
+            f.targetXmlPath = newMovedPath;
+        } else if (isAncestor && f.targetXmlPath.startsWith(prefix)) {
+            f.targetXmlPath = newMovedPath + f.targetXmlPath.substring(movedPath.length);
+        }
+        f.isCovered = existingXmlMap.has(f.targetXmlPath);
+        f.selectedForAdd = !f.isCovered && !f.isXmlOnly;
+    });
+    return cleanName;
 }
 
 function renderTable() {
@@ -2220,7 +2253,18 @@ function renderTable() {
             const id = e.target.getAttribute('data-id');
             const destPath = e.target.value;
             const field = detectedFields.find(f => f.id === id);
-            if (!field || !destPath) { e.target.value = ''; return; }
+            if (!field) { e.target.value = ''; return; }
+            if (!destPath) { e.target.value = ''; return; }
+
+            if (destPath === '__ADD_LEVEL__') {
+                const parts = splitXmlPath(field.targetXmlPath);
+                const parentPath = parts.slice(0, -1).join('.');
+                const created = insertIntermediateLevel(parentPath, field.targetXmlPath, false);
+                e.target.value = '';
+                if (created) { updateStats(); renderTable(); }
+                return;
+            }
+
             const parts = splitXmlPath(field.targetXmlPath);
             const leafName = parts[parts.length - 1];
             field.targetXmlPath = destPath + '.' + leafName;
@@ -2237,6 +2281,15 @@ function renderTable() {
             const ancPath = e.target.getAttribute('data-path');
             const destParent = e.target.value;
             if (!ancPath || !destParent) { e.target.value = ''; return; }
+
+            if (destParent === '__ADD_LEVEL__') {
+                const parts = splitXmlPath(ancPath);
+                const parentOfAnc = parts.slice(0, -1).join('.');
+                const created = insertIntermediateLevel(parentOfAnc, ancPath, true);
+                e.target.value = '';
+                if (created) { updateStats(); renderTable(); }
+                return;
+            }
 
             const parts = splitXmlPath(ancPath);
             const ancName = parts[parts.length - 1];

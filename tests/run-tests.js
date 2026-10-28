@@ -72,21 +72,26 @@ bootstrapNeutralizers.forEach(re => { sandboxScript = sandboxScript.replace(re, 
 
 // Charger le script dans le contexte de test (avec un vrai DOMParser XML).
 const loader = new Function(
-    'document', 'window', 'DOMParser',
+    'document', 'window', 'DOMParser', 'prompt',
     sandboxScript + `
 ;return {
     splitEdifact, extractQualifier, isTechnicalQualifierPosition,
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
     loadDemoScenario, buildCompletedEdi, analyzeEdifactFiles,
-    countPathLevels, splitXmlPath, buildTreeOrdering, buildMoveOptionsList,
+    countPathLevels, splitXmlPath, buildTreeOrdering, buildMoveOptionsList, insertIntermediateLevel,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
     getActiveMessageType: function() { return activeMessageType; },
     setLoadedEdiFiles: function(files) { loadedEdiFiles = files; }
 };`
 );
-const app = loader(documentStub, windowStub, XmlDomParser);
+let promptCallCount = 0;
+const promptStub = () => {
+    promptCallCount++;
+    return promptCallCount === 1 ? 'NewGroup' : null;
+};
+const app = loader(documentStub, windowStub, XmlDomParser, promptStub);
 
 // =============================================================================
 console.log('\n== 1. Tokenisation & échappement EDIFACT ==');
@@ -251,6 +256,21 @@ ok(dests2.includes('OrderHeader') && dests2.includes('OrderHeader.Supplier'), 'C
 const leafDests = app.buildMoveOptionsList('OrderHeader.FreeText', ['OrderHeader']);
 ok(leafDests.includes('OrderHeader.Supplier'), 'Feuille : autres mères proposées');
 ok(leafDests.includes('EDIXml'), 'Feuille : racine EDIXml proposée');
+
+console.log('\n== 12. Ajout de niveau hiérarchique ==');
+app.loadDemoScenario('ORDERS');
+const existingPaths = new Set(app.getDetectedFields().map(f => f.targetXmlPath));
+const before = app.getDetectedFields().map(f => f.targetXmlPath);
+// prompt stubé : nom de la nouvelle balise mère
+const created = app.insertIntermediateLevel('OrderHeader', 'OrderHeader.FreeText', false);
+eq(created, 'NewGroup', 'Niveau créé avec le nom saisi');
+const movedField = app.getDetectedFields().find(f => f.targetXmlPath === 'OrderHeader.NewGroup.FreeText');
+ok(Boolean(movedField), 'Feuille déplacée sous le nouveau niveau OrderHeader.NewGroup.FreeText');
+const untouched = before.filter(p => p !== 'OrderHeader.FreeText' && app.getDetectedFields().every(f => f.targetXmlPath !== p));
+ok(untouched.length === 0, 'Les autres champs ne sont pas modifiés');
+// Cas annulation : prompt → null
+const createdNull = app.insertIntermediateLevel('OrderHeader', 'OrderHeader.Currency', false);
+eq(createdNull, null, 'Annulation du prompt → null, aucun changement');
 
 // =============================================================================
 console.log(`\nRésultat : ${passed} PASS, ${failed} FAIL`);
