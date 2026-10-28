@@ -1015,6 +1015,69 @@ let detectedFields = [];
 let mergedEdiTemplates = new Map();
 let ediUnhHeaderRaw = "UNH+1+ORDERS:D:96A:UN:EAN008'";
 
+/**
+ * Ordre normé des segments EDIFACT D.96A par section (ORDERS / DESADV / INVOIC).
+ * Les segments absents de cette table gardent leur ordre de détection, après les segments connus.
+ */
+const EDIFACT_D96A_SEGMENT_ORDER = {
+    ENVELOPE: ['UNB'],
+    HEADER_BEFORE_PARTIES: ['BGM', 'DTM', 'PAI', 'ALC', 'FII', 'RFF', 'FTX'],
+    HEADER_PARTY_GROUP: ['NAD', 'LOC', 'RFF', 'FTX', 'CTA', 'COM'],
+    HEADER_AFTER_PARTIES: ['TAX', 'CUX', 'PAT', 'TDT', 'TOD', 'EQD', 'MEA', 'MOA'],
+    PACKAGING: ['CPS', 'PAC', 'MEA', 'EQD', 'GIN', 'PCI', 'RFF', 'FTX', 'QTY'],
+    DETAIL: ['LIN', 'PIA', 'IMD', 'MEA', 'QTY', 'ALC', 'MOA', 'PRI', 'RFF', 'FTX', 'DTM', 'LOC', 'PAT', 'TAX', 'PAC', 'GIN', 'PCI'],
+    SUMMARY: ['CNT', 'MOA', 'TAX', 'ALC', 'RFF', 'FTX', 'DTM']
+};
+
+function getNormRank(orderList, tag) {
+    const idx = orderList.indexOf(tag);
+    return idx === -1 ? 500 : idx;
+}
+
+function sortByNormList(segs, orderList) {
+    return segs.slice().sort((a, b) => {
+        const ra = getNormRank(orderList, a.tag);
+        const rb = getNormRank(orderList, b.tag);
+        if (ra !== rb) return ra - rb;
+        return a.orderIndex - b.orderIndex;
+    });
+}
+
+function sortSegmentsByNorm(segs) {
+    if (segs.length === 0) return segs;
+    const section = segs[0].section;
+
+    if (section !== 'HEADER') {
+        const orderList = EDIFACT_D96A_SEGMENT_ORDER[section] || [];
+        return sortByNormList(segs, orderList);
+    }
+
+    // HEADER : 3 zones — avant les parties, groupes partenaires (dans l'ordre d'apparition), après les parties
+    const before = sortByNormList(
+        segs.filter(s => !s.groupCtx && getNormRank(EDIFACT_D96A_SEGMENT_ORDER.HEADER_BEFORE_PARTIES, s.tag) !== 500),
+        EDIFACT_D96A_SEGMENT_ORDER.HEADER_BEFORE_PARTIES
+    );
+
+    const partyGroupOrder = [];
+    segs.forEach(s => {
+        if (s.groupCtx && !partyGroupOrder.includes(s.groupCtx)) partyGroupOrder.push(s.groupCtx);
+    });
+
+    const partyGroups = partyGroupOrder.map(ctx =>
+        sortByNormList(
+            segs.filter(s => s.groupCtx === ctx),
+            EDIFACT_D96A_SEGMENT_ORDER.HEADER_PARTY_GROUP
+        )
+    ).reduce((acc, g) => acc.concat(g), []);
+
+    const after = sortByNormList(
+        segs.filter(s => !s.groupCtx && getNormRank(EDIFACT_D96A_SEGMENT_ORDER.HEADER_BEFORE_PARTIES, s.tag) === 500),
+        EDIFACT_D96A_SEGMENT_ORDER.HEADER_AFTER_PARTIES
+    );
+
+    return before.concat(partyGroups).concat(after);
+}
+
 // Références DOM
 const fileInputEdi = document.getElementById('fileInputEdi');
 const fileInputXml = document.getElementById('fileInputXml');
@@ -1250,37 +1313,61 @@ function extractQualifier(tag, elements, compSep = ':') {
     return comps[0] ? comps[0].trim() : '';
 }
 
+const targetPathUsageCounter = new Map();
+
+function registerTargetXmlPath(path) {
+    const count = (targetPathUsageCounter.get(path) || 0) + 1;
+    targetPathUsageCounter.set(path, count);
+    return count === 1 ? path : `${path}_${count}`;
+}
+
 function resolveTargetXmlPath(section, rule, tag, qualifier, posCode, activeGroupContext) {
     let sectionPrefix = xmlContainers.headerName;
     if (section === 'ENVELOPE') sectionPrefix = xmlContainers.rootName;
     else if (section === 'PACKAGING' || section === 'DETAIL') sectionPrefix = xmlContainers.itemName;
     else if (section === 'SUMMARY') sectionPrefix = xmlContainers.summaryName;
 
+    let chosenPath;
     if (!rule || !rule.field) {
         const ctxPrefix = activeGroupContext ? `${activeGroupContext}_` : '';
-        return `${sectionPrefix}.${ctxPrefix}${tag}_${qualifier ? qualifier + '_' : ''}${posCode.replace('.', '_')}`;
-    }
-
-    const candidates = rule.field.split('|');
-    for (const cand of candidates) {
-        const fullCand = `${sectionPrefix}.${cand}`;
-        if (existingXmlMap.has(fullCand)) return fullCand;
-    }
-
-    let chosen = candidates[0];
-    if (candidates.length > 1) {
-        if (activeMessageType === 'DESADV') {
-            chosen = candidates.find(c => /Despatch|Document|Delivery|SSCC/i.test(c)) || candidates[0];
-        } else if (activeMessageType === 'INVOIC') {
-            chosen = candidates.find(c => /Invoice|NetAmount|Tax/i.test(c)) || candidates[candidates.length - 1];
+        chosenPath = `${sectionPrefix}.${ctxPrefix}${tag}_${qualifier ? qualifier + '_' : ''}${posCode.replace('.', '_')}`;
+    } else {
+        const candidates = rule.field.split('|');
+        let found = '';
+        for (const cand of candidates) {
+            const fullCand = `${sectionPrefix}.${cand}`;
+            if (existingXmlMap.has(fullCand)) { found = fullCand; break; }
+        }
+        if (found) {
+            chosenPath = found;
+        } else {
+            let chosen = candidates[0];
+            if (candidates.length > 1) {
+                if (activeMessageType === 'DESADV') {
+                    chosen = candidates.find(c => /Despatch|Document|Delivery|SSCC/i.test(c)) || candidates[0];
+                } else if (activeMessageType === 'INVOIC') {
+                    chosen = candidates.find(c => /Invoice|NetAmount|Tax/i.test(c)) || candidates[candidates.length - 1];
+                }
+            }
+            chosenPath = `${sectionPrefix}.${chosen}`;
         }
     }
-    return `${sectionPrefix}.${chosen}`;
+
+    const usage = targetPathUsageCounter.get(chosenPath) || 0;
+    if (usage === 0 && (rule && rule.field) && existingXmlMap.has(chosenPath)) {
+        return chosenPath;
+    }
+    if (usage === 0 && (!rule || !rule.field)) {
+        targetPathUsageCounter.set(chosenPath, 1);
+        return chosenPath;
+    }
+    return registerTargetXmlPath(chosenPath);
 }
 
 function analyzeEdifactFiles() {
     const fieldsMap = new Map();
     mergedEdiTemplates.clear();
+    targetPathUsageCounter.clear();
     let orderCounter = 0;
 
     // En-tête UNH par défaut selon le flux
@@ -1744,12 +1831,12 @@ function buildCompletedEdi() {
     const numLines = Math.max(1, Math.min(20, parseInt(ediLineCountInput.value, 10) || 3));
     const includeXmlExtras = ediIncludeXmlOnlySegments.checked;
 
-    const allTemplates = Array.from(mergedEdiTemplates.values()).sort((a, b) => a.orderIndex - b.orderIndex);
-    const envSegs = allTemplates.filter(t => t.section === 'ENVELOPE');
-    const headerSegs = allTemplates.filter(t => t.section === 'HEADER');
-    const packSegs = allTemplates.filter(t => t.section === 'PACKAGING');
-    const detailSegs = allTemplates.filter(t => t.section === 'DETAIL');
-    const summarySegs = allTemplates.filter(t => t.section === 'SUMMARY');
+    const allTemplates = Array.from(mergedEdiTemplates.values());
+    const envSegs = sortSegmentsByNorm(allTemplates.filter(t => t.section === 'ENVELOPE'));
+    const headerSegs = sortSegmentsByNorm(allTemplates.filter(t => t.section === 'HEADER'));
+    const packSegs = sortSegmentsByNorm(allTemplates.filter(t => t.section === 'PACKAGING'));
+    const detailSegs = sortSegmentsByNorm(allTemplates.filter(t => t.section === 'DETAIL'));
+    const summarySegs = sortSegmentsByNorm(allTemplates.filter(t => t.section === 'SUMMARY'));
 
     const outputLines = [];
     const controlRef = String(randInt(100000, 999999)).padStart(10, '0');
@@ -1933,7 +2020,7 @@ function renderTable() {
             <td>${statusBadge}</td>
             <td>
                 ${(item.isCovered || item.isXmlOnly)
-                    ? `<code style="font-family: var(--font-mono); color: #15803d; font-weight: 600;">${escapeHtml(fullDisplayPath)}</code>`
+                    ? `<input type="text" class="xml-input" data-id="${escapeHtml(item.id)}" value="${escapeHtml(item.targetXmlPath)}" style="border-color: #bbf7d0; background: #f0fdf4;">`
                     : `<input type="text" class="xml-input" data-id="${escapeHtml(item.id)}" value="${escapeHtml(item.targetXmlPath)}">`
                 }
             </td>
@@ -1959,6 +2046,14 @@ function renderTable() {
                 field.isCovered = existingXmlMap.has(field.targetXmlPath);
                 updateStats();
             }
+        });
+        inp.addEventListener('change', () => {
+            const currentId = inp.getAttribute('data-id');
+            const f = detectedFields.find(x => x.id === currentId);
+            if (f && !f.isXmlOnly && !f.isCovered) {
+                f.selectedForAdd = true;
+            }
+            renderTable();
         });
     });
 }
