@@ -79,7 +79,7 @@ const loader = new Function(
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
     loadDemoScenario, buildCompletedEdi, analyzeEdifactFiles,
-    countPathLevels, splitXmlPath, buildTreeOrdering,
+    countPathLevels, splitXmlPath, buildTreeOrdering, buildMoveOptionsList,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
     getActiveMessageType: function() { return activeMessageType; },
@@ -238,6 +238,19 @@ eq(seq.join('>'), '[OrderHeader]>[OrderHeader.Buyer]>OrderHeader.Buyer.GLN>Order
    'Arbre : mères uniques avant filles, groupement mère/filles');
 ok(treeRows.filter(r => !r.isLeafRow).every(r => r.depth === app.splitXmlPath(r.path).length - 1), 'Profondeur des ancêtres cohérente');
 eq(treeRows.filter(r => r.isLeafRow && r.parts[r.parts.length - 1] === 'GLN').length, 1, 'Feuille GLN présente');
+
+console.log('\n== 11. Listes de déplacement ==');
+app.loadDemoScenario('ORDERS');
+const dests = app.buildMoveOptionsList('OrderHeader.Supplier', ['OrderHeader']);
+ok(dests.includes('OrderHeader'), 'Destination : ancêtre direct proposé');
+ok(!dests.includes('OrderHeader.Supplier'), 'Le chemin déplacé lui-même est exclu');
+ok(!dests.some(p => p.startsWith('OrderHeader.Supplier.')), 'Descendants exclus (pas de cycle)');
+ok(dests.every(p => p.indexOf('..') === -1), 'Chemins de destination bien formés');
+const dests2 = app.buildMoveOptionsList('OrderHeader.Supplier.VatNumber', []);
+ok(dests2.includes('OrderHeader') && dests2.includes('OrderHeader.Supplier'), 'Chemin profond : parents proposés');
+const leafDests = app.buildMoveOptionsList('OrderHeader.FreeText', ['OrderHeader']);
+ok(leafDests.includes('OrderHeader.Supplier'), 'Feuille : autres mères proposées');
+ok(leafDests.includes('EDIXml'), 'Feuille : racine EDIXml proposée');
 
 // =============================================================================
 console.log(`\nRésultat : ${passed} PASS, ${failed} FAIL`);

@@ -2005,6 +2005,31 @@ function buildTreeOrdering(fields) {
 
 const INDENT_UNIT = 120;
 
+function buildMoveOptionsList(excludePath, extraOptions) {
+    const destPaths = new Set();
+    detectedFields.forEach(f => {
+        const fp = splitXmlPath(f.targetXmlPath);
+        for (let i = 1; i < fp.length; i++) destPaths.add(fp.slice(0, i).join('.'));
+    });
+    (extraOptions || []).forEach(p => {
+        if (p) destPaths.add(p);
+    });
+    // Exclure uniquement le chemin déplacé et ses descendants (pas de cycle) ;
+    // les ancêtres légitimes restent des destinations valides.
+    return Array.from(destPaths)
+        .filter(p => p !== excludePath && !p.startsWith(excludePath + '.'))
+        .sort();
+}
+
+function buildMoveSelectHtml(selectClass, dataId, dataPath, currentParentPath, destinations) {
+    return `<select class="move-select ${selectClass}" data-id="${escapeHtml(dataId)}" data-path="${escapeHtml(dataPath || '')}" title="Déplacer sous cette balise mère">
+        <option value="">— Déplacer sous… —</option>
+        ${destinations.map(p =>
+            `<option value="${escapeHtml(p)}" ${p === currentParentPath ? 'disabled' : ''}>${escapeHtml(p)}</option>`
+        ).join('')}
+      </select>`;
+}
+
 function renderTable() {
     const search = searchInput.value.toLowerCase().trim();
     const stFilter = statusFilter.value;
@@ -2040,6 +2065,10 @@ function renderTable() {
             const ancIdx = parts.length - 1;
             const ancName = parts[ancIdx];
             const indent = ancIdx * INDENT_UNIT;
+            const parentOfAnc = parts.slice(0, -1).join('.');
+
+            const dests = buildMoveOptionsList(row.path, [parts[0]]);
+            const moveSel = buildMoveSelectHtml('move-ancestor', '', row.path, parentOfAnc, dests);
 
             tr.innerHTML = `
                 <td></td>
@@ -2054,6 +2083,7 @@ function renderTable() {
                     <div class="tree-branch">
                         <input type="text" class="xml-input ancestor-input" data-anc="${ancIdx}" data-path="${escapeHtml(row.path)}"
                             value="${escapeHtml(ancName)}">
+                        ${ancIdx > 0 ? moveSel : ''}
                     </div>
                 </td>
             `;
@@ -2088,20 +2118,8 @@ function renderTable() {
         const parentPath = parts.slice(0, -1).join('.');
         const indent = (parts.length - 1) * INDENT_UNIT;
 
-        // Options de relocalisation : tous les ancêtres connus du lot
-        const allAncestorPaths = new Set();
-        detectedFields.forEach(f => {
-            const fp = splitXmlPath(f.targetXmlPath);
-            for (let i = 1; i < fp.length; i++) allAncestorPaths.add(fp.slice(0, i).join('.'));
-        });
-        const moveSelect = item.isCovered || item.isXmlOnly
-            ? ''
-            : `<select class="move-select" data-id="${escapeHtml(item.id)}" title="Placer sous cette balise mère">
-                <option value="">— Déplacer sous… —</option>
-                ${Array.from(allAncestorPaths).sort().map(p =>
-                    `<option value="${escapeHtml(p)}" ${p === parentPath ? 'disabled' : ''}>${escapeHtml(p)}</option>`
-                ).join('')}
-              </select>`;
+        const leafDests = buildMoveOptionsList(item.targetXmlPath, [parts[0]]);
+        const moveSelect = buildMoveSelectHtml('move-leaf', item.id, item.targetXmlPath, parentPath, leafDests);
 
         tr.innerHTML = `
             <td style="text-align: center;">
@@ -2196,7 +2214,8 @@ function renderTable() {
     });
 
     // Déplacement d'une feuille manquante sous une autre mère
-    document.querySelectorAll('.move-select').forEach(sel => {
+    // Déplacement d'une FEUILLE (tout statut : couverte, manquante, XML-seule)
+    document.querySelectorAll('.move-select.move-leaf').forEach(sel => {
         sel.addEventListener('change', e => {
             const id = e.target.getAttribute('data-id');
             const destPath = e.target.value;
@@ -2206,7 +2225,36 @@ function renderTable() {
             const leafName = parts[parts.length - 1];
             field.targetXmlPath = destPath + '.' + leafName;
             field.isCovered = existingXmlMap.has(field.targetXmlPath);
-            field.selectedForAdd = !field.isCovered;
+            field.selectedForAdd = !field.isCovered && !field.isXmlOnly;
+            updateStats();
+            renderTable();
+        });
+    });
+
+    // Déplacement d'une MÈRE avec tout son sous-arbre (toutes les filles suivent)
+    document.querySelectorAll('.move-select.move-ancestor').forEach(sel => {
+        sel.addEventListener('change', e => {
+            const ancPath = e.target.getAttribute('data-path');
+            const destParent = e.target.value;
+            if (!ancPath || !destParent) { e.target.value = ''; return; }
+
+            const parts = splitXmlPath(ancPath);
+            const ancName = parts[parts.length - 1];
+            const newAncPath = destParent + '.' + ancName;
+            if (newAncPath === ancPath) { e.target.value = ''; return; }
+
+            const prefix = ancPath + '.';
+            detectedFields.forEach(f => {
+                if (f.targetXmlPath === ancPath) {
+                    f.targetXmlPath = newAncPath;
+                    f.isCovered = existingXmlMap.has(f.targetXmlPath);
+                    f.selectedForAdd = !f.isCovered && !f.isXmlOnly;
+                } else if (f.targetXmlPath.startsWith(prefix)) {
+                    f.targetXmlPath = newAncPath + f.targetXmlPath.substring(ancPath.length);
+                    f.isCovered = existingXmlMap.has(f.targetXmlPath);
+                    f.selectedForAdd = !f.isCovered && !f.isXmlOnly;
+                }
+            });
             updateStats();
             renderTable();
         });
