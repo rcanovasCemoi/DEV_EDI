@@ -78,10 +78,11 @@ const loader = new Function(
     splitEdifact, extractQualifier, isTechnicalQualifierPosition,
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
-    loadDemoScenario, buildCompletedEdi,
+    loadDemoScenario, buildCompletedEdi, analyzeEdifactFiles,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
-    getActiveMessageType: function() { return activeMessageType; }
+    getActiveMessageType: function() { return activeMessageType; },
+    setLoadedEdiFiles: function(files) { loadedEdiFiles = files; }
 };`
 );
 const app = loader(documentStub, windowStub, XmlDomParser);
@@ -194,6 +195,27 @@ ok(nadLine && /\+\d{13}[:+]/.test(nadLine), 'Master ORDERS : GLN à 13 chiffres 
 // Prix : PRI01.2 avec 3 décimales
 const priLine = app.buildCompletedEdi().split(/\r?\n/).find(l => l.startsWith('PRI+'));
 ok(priLine && /PRI\+(?:AAA:)?\d+\.\d{3}/.test(priLine), 'Master ORDERS : prix PRI à 3 décimales');
+
+console.log('\n== 9. Non-régression doublons — scénario FTX multiples (cas capture) ==');
+// Reproduit le bug signalé : FTX+INV / FTX+PUR / FTX+ZZZ doivent obtenir des chemins uniques
+app.loadDemoScenario('INVOIC');
+app.setLoadedEdiFiles([{
+    filename: 'regression.inv',
+    content: "UNH+1+INVOIC:D:96A:UN:EAN008'\n" +
+            "BGM+380::9+FA123+9'\n" +
+            "FTX+INV+++Mentions facture'\n" +
+            "FTX+PUR+++Contact client'\n" +
+            "FTX+ZZZ+++Texte divers'\n" +
+            "UNS+S'\n" +
+            "CNT+2:3'"
+}]);
+app.analyzeEdifactFiles();
+const ftxFields = app.getDetectedFields().filter(f => f.tag === 'FTX' && f.posCode === 'FTX04.1');
+ok(ftxFields.length === 3, `Trois FTX04.1 détectés (${ftxFields.length} = 3)`);
+const ftxPaths = ftxFields.map(f => f.targetXmlPath);
+ok(new Set(ftxPaths).size === ftxPaths.length, 'FTX INV/PUR/ZZZ : aucun doublon de chemin');
+const allPaths = app.getDetectedFields().filter(f => !f.isXmlOnly).map(f => f.targetXmlPath);
+ok(new Set(allPaths).size === allPaths.length, `Aucun doublon global (${allPaths.length} chemins uniques)`);
 
 // =============================================================================
 console.log(`\nRésultat : ${passed} PASS, ${failed} FAIL`);

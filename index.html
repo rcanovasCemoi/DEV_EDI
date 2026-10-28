@@ -1353,14 +1353,6 @@ function resolveTargetXmlPath(section, rule, tag, qualifier, posCode, activeGrou
         }
     }
 
-    const usage = targetPathUsageCounter.get(chosenPath) || 0;
-    if (usage === 0 && (rule && rule.field) && existingXmlMap.has(chosenPath)) {
-        return chosenPath;
-    }
-    if (usage === 0 && (!rule || !rule.field)) {
-        targetPathUsageCounter.set(chosenPath, 1);
-        return chosenPath;
-    }
     return registerTargetXmlPath(chosenPath);
 }
 
