@@ -23,7 +23,7 @@ Flux pris en charge : **ORDERS** (D.96A / EAN008), **DESADV** (D.96A / EAN005), 
    - **Fichier .EDI Master complété** (`.edi`) — superset fusionné, valeurs aléatoires typées (GLN/GTIN 13 chiffres, dates `CCYYMMDD[HHMM]`, prix 3 décimales), régénération à la volée, nombre de lignes `LIN` réglable (1 à 20), compteur `UNT` recalculé.
    - **Matrice de Mapping** (`.csv`, BOM UTF-8 pour Excel).
 
-Des jeux de démonstration (`ORDERS`, `DESADV`, `INVOIC`) sont intégrés pour test immédiat.
+
 
 ## Moteur EDIFACT
 
@@ -44,7 +44,7 @@ Des jeux de démonstration (`ORDERS`, `DESADV`, `INVOIC`) sont intégrés pour t
 | Fichier | Description |
 |---|---|
 | `index.html` | Application autonome (HTML5/CSS3/JS vanilla, fichier unique) |
-| `tests/run-tests.js` | Tests de non-régression Node.js (tokenisation, échappement, tri normé, démo complets, intégrité UNT) |
+| `tests/run-tests.js` | Tests de non-régression Node.js (tokenisation, échappement, tri normé, scénarios complets, intégrité UNT) |
 | `.github/workflows/tests.yml` | CI GitHub Actions : exécute les tests à chaque push/PR sur `main` |
 
 ## Tests
@@ -54,4 +54,4 @@ npm install   # installe la dépendance de test uniquement
 npm test       # 42 assertions de non-régression
 ```
 
-Les tests rejouent les trois scénarios de démo (ORDERS, DESADV, INVOIC) de bout en bout et vérifient : tokenisation et échappement `?`, filtrage QUAL/DATA, détection de flux, dédoublonnage numéroté des chemins XML, tri normé D.96A des segments, exactitude du compteur `UNT`, cohérence `UNH`/`UNT`, absence de séparateurs pendants, et formats typés (GLN 13 chiffres, prix 3 décimales).
+Les tests rejouent trois scénarios EDI complets (ORDERS, DESADV, INVOIC) de bout en bout et vérifient : tokenisation et échappement `?`, filtrage QUAL/DATA, détection de flux, dédoublonnage numéroté des chemins XML, tri normé D.96A des segments, exactitude du compteur `UNT`, cohérence `UNH`/`UNT`, absence de séparateurs pendants, et formats typés (GLN 13 chiffres, prix 3 décimales).

@@ -51,7 +51,6 @@
         h1 { font-size: 1.4rem; color: var(--primary); }
         .subtitle { color: var(--secondary); font-size: 0.86rem; margin-top: 0.15rem; }
 
-        .demo-bar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 
         .type-selector-bar {
             background: var(--card-bg);
@@ -315,12 +314,6 @@
         <div>
             <h1>Analyseur EDIFACT & Générateur de Fichiers de Référence (.xml & .edi)</h1>
             <p class="subtitle">Compare vos fichiers EDIFACT (ORDERS, DESADV, INVOIC) avec votre XML de référence et génère le XML complété ainsi que le fichier .EDI de référence peuplé aléatoirement.</p>
-        </div>
-        <div class="demo-bar">
-            <span style="font-size: 0.8rem; color: var(--secondary); font-weight: 600;">Simulations :</span>
-            <button class="btn btn-outline" onclick="loadDemoScenario('ORDERS')">Démo ORDERS (Votre XML + EDI)</button>
-            <button class="btn btn-outline" onclick="loadDemoScenario('DESADV')">Démo DESADV</button>
-            <button class="btn btn-outline" onclick="loadDemoScenario('INVOIC')">Démo INVOIC</button>
         </div>
     </header>
 
@@ -2572,137 +2565,6 @@ document.getElementById('btnExportCsv').addEventListener('click', () => {
     document.body.removeChild(link);
 });
 
-/**
- * ============================================================================
- * 9. JEUX DE DONNÉES DE DÉMONSTRATION (ORDERS, DESADV, INVOIC)
- * ============================================================================
- */
-function loadDemoScenario(type) {
-    customXmlLoaded = false;
-    switchMessageType(type, false);
-
-    if (type === 'ORDERS') {
-        const sampleOrders = `UNH+1+ORDERS:D:96A:UN:EAN008'
-BGM+220::9+ORDER00001+6'
-DTM+137:20260305:102'
-DTM+2:202603120001:203'
-FTX+PUR+1++CONTACT CLIENT TEL XX XX XX XX XX'
-RFF+VN:SUPP00001'
-DTM+171:20260305:102'
-NAD+BY+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999'
-NAD+SU+8888888888888::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+CITY++99999+FR'
-NAD+DP+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999'
-CUX+2:EUR:9'
-TDT+20++30'
-TOD+10E+X1E'
-LIN+1++ARTICLE0001:EN'
-QTY+59:30:PCE'
-QTY+21:480:PCE'
-DTM+361:20270531:102'
-PRI+AAA:0.958::NTP::PCE'
-PRI+AAB:0.953::NTP::PCE'
-PAC+16+3+CS:::SSCC0000000001'
-TAX+7+VAT+++:::5.5+S'
-LIN+4++ARTICLE0004:EN'
-QTY+59:16:PCE'
-QTY+21:3600:PCE'
-DTM+361:20261107:102'
-PRI+AAA:1.606::NTP::PCE'
-PRI+AAB:1.601::NTP::PCE'
-PAC+1+3+X1::9:SSCC0000000004'
-TAX+7+VAT+++:::5.5+S'
-UNS+S'
-UNT+30+1'`;
-        loadedEdiFiles = [{ filename: 'order_anonyme.txt', content: sampleOrders }];
-    } else if (type === 'DESADV') {
-        const sampleDesadv = `UNB+UNOC:3+8888888888888:14+9999999999999:14+260310:1430+0000000098'
-UNH+1+DESADV:D:96A:UN:EAN005'
-BGM+351::9+BL20260998+9'
-DTM+137:20260310:102'
-DTM+11:202603101430:203'
-DTM+2:202603120800:203'
-RFF+ON:ORDER00001'
-RFF+VN:SUPP00001'
-NAD+BY+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999+FR'
-NAD+SU+8888888888888::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+PERPIGNAN++66000+FR'
-NAD+DP+9999999999999::9++PLATEFORME LOGISTIQUE SUD+AVENUE DE L EUROPE+CITY++99999+FR'
-TDT+20++30++TRANSPORTS EXPRESS:::TRANSPORT EXPRESS SAS'
-EQD+TE+AA-123-BB'
-CPS+1++4'
-PAC+1++201::9'
-MEA+PD+AAB+KGM:452.50'
-PCI+33E'
-GIN+BJ+330123456000000018'
-LIN+1++ARTICLE0001:EN'
-PIA+1+ART-SUPP-01:SA'
-IMD+F++:::TABLETTE CHOCOLAT NOIR 70% 100G'
-QTY+12:480:PCE'
-QTY+21:480:PCE'
-DTM+361:20270531:102'
-DTM+94:20260215:102'
-GIN+BX+LOT-2026-089'
-RFF+ON:ORDER00001:1'
-CNT+2:1'
-UNT+28+1'
-UNZ+1+0000000098'`;
-        loadedEdiFiles = [{ filename: 'desadv_anonyme.txt', content: sampleDesadv }];
-    } else if (type === 'INVOIC') {
-        const sampleInvoic = `UNB+UNOC:3+8888888888888:14+9999999999999:14+260312:1800+0000000451'
-UNH+1+INVOIC:D:96A:UN:EAN008'
-BGM+380::9+FA202600451+9'
-DTM+137:20260312:102'
-DTM+35:20260312:102'
-DTM+140:20260430:102'
-PAI+::42'
-FTX+REG+++PAS D ESCOMPTE POUR PAIEMENT ANTICIPE - PENALITES 3 FOIS TAUX LEGAL'
-RFF+ON:ORDER00001'
-RFF+DQ:BL20260998'
-NAD+BY+9999999999999::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++99999+FR'
-RFF+VA:FR99999999999'
-NAD+SU+8888888888888::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+PERPIGNAN++66000+FR'
-RFF+VA:FR88888888888'
-NAD+IV+9999999999999::9++CUSTOMER ACCOUNTING+CUSTOMER ADDRESS+CITY++99999+FR'
-RFF+VA:FR99999999999'
-CUX+2:EUR:4'
-PAT+1++5:3:D:45'
-LIN+1++ARTICLE0001:EN'
-PIA+1+ART-SUPP-01:SA'
-IMD+F++:::TABLETTE CHOCOLAT NOIR 70% 100G'
-QTY+47:480:PCE'
-MOA+203:459.84:EUR'
-PRI+AAA:0.958::NTP::PCE'
-PRI+AAB:1.050::NTP::PCE'
-ALC+A++++TD'
-PCD+3:8.76'
-MOA+204:44.16:EUR'
-RFF+ON:ORDER00001:1'
-RFF+DQ:BL20260998'
-TAX+7+VAT+++:::5.5+S'
-MOA+124:25.29:EUR'
-UNS+S'
-CNT+2:1'
-MOA+79:459.84:EUR'
-MOA+125:459.84:EUR'
-MOA+176:25.29:EUR'
-MOA+77:485.13:EUR'
-MOA+139:485.13:EUR'
-TAX+7+VAT+++:::5.5+S'
-MOA+124:25.29:EUR'
-UNT+41+1'
-UNZ+1+0000000451'`;
-        loadedEdiFiles = [{ filename: 'invoic_anonyme.txt', content: sampleInvoic }];
-    }
-
-    document.getElementById('ediStatusText').innerHTML =
-        `Simulation active : <strong>1 fichier ${type}</strong> analysé contre le XML de référence.`;
-    analyzeEdifactFiles();
-    resultsArea.classList.remove('hidden');
-    renderTable();
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-    loadDemoScenario('ORDERS');
-});
 </script>
 
 </body>

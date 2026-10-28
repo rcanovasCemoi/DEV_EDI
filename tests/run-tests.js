@@ -78,7 +78,7 @@ const loader = new Function(
     splitEdifact, extractQualifier, isTechnicalQualifierPosition,
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
-    loadDemoScenario, buildCompletedEdi, analyzeEdifactFiles,
+    switchMessageType, buildCompletedEdi, analyzeEdifactFiles,
     countPathLevels, splitXmlPath, buildTreeOrdering, buildMoveOptionsList, insertIntermediateLevel,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
@@ -92,6 +92,68 @@ const promptStub = () => {
     return promptCallCount === 1 ? 'NewGroup' : null;
 };
 const app = loader(documentStub, windowStub, XmlDomParser, promptStub);
+
+// --- Jeux EDI de test (remplacent les démos supprimées de l'app) ------------
+const TEST_EDI = {
+    ORDERS: "UNH+1+ORDERS:D:96A:UN:EAN008'\n" +
+        "BGM+220::9+ORDER00001+9'\n" +
+        "DTM+137:20260305:102'\n" +
+        "DTM+2:202603120001:203'\n" +
+        "FTX+PUR+1++CONTACT CLIENT TEL 04 68 00 00 00'\n" +
+        "RFF+VN:SUPP00001'\n" +
+        "DTM+171:20260305:102'\n" +
+        "NAD+BY+3012345678905::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++66000'\n" +
+        "NAD+SU+3029876543210::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+CITY++31000+FR'\n" +
+        "RFF+VA:FR12345678901'\n" +
+        "NAD+DP+3012345678905::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++66000'\n" +
+        "CUX+2:EUR:9'\n" +
+        "PAT+22+++2:3:0'\n" +
+        "TDT+20++30+TRP0001+++TRANSPORTS EXPRESS SAS'\n" +
+        "TOD+10E+X1E+DDP'\n" +
+        "LIN+1++3017620412345:EN'\n" +
+        "QTY+21:144:PCE'\n" +
+        "PRI+AAA:0.958::NTP::PCE'\n" +
+        "RFF+ON:CMD000001'\n" +
+        "UNS+S'\n" +
+        "CNT+2:1'",
+    DESADV: "UNB+UNOC:3+3029876543210:14+3012345678905:14+260310:1430+0000000098'\n" +
+        "UNH+1+DESADV:D:96A:UN:EAN005'\n" +
+        "BGM+351::9+BL000001+9'\n" +
+        "DTM+137:20260310:102'\n" +
+        "NAD+SU+3029876543210::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+CITY++31000+FR'\n" +
+        "NAD+DP+3012345678905::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++66000'\n" +
+        "CPS+1'\n" +
+        "PAC+16+3+CS:::SSCC00000001'\n" +
+        "MEA+AAE+WGM+1200.500:KGM'\n" +
+        "GIN+BJ+330123456789012345'\n" +
+        "LIN+1++3017620412345:EN'\n" +
+        "QTY+12:16:PCE'\n" +
+        "UNS+S'\n" +
+        "CNT+2:1'",
+    INVOIC: "UNH+1+INVOIC:D:96A:UN:EAN008'\n" +
+        "BGM+380::9+FA000001+9'\n" +
+        "DTM+137:20260312:102'\n" +
+        "DTM+171:20260305:102'\n" +
+        "RFF+VN:SUPP00001'\n" +
+        "NAD+BY+3012345678905::9++CUSTOMER COMPANY+CUSTOMER ADDRESS+CITY++66000'\n" +
+        "NAD+SU+3029876543210::9++SUPPLIER COMPANY+SUPPLIER ADDRESS+CITY++31000+FR'\n" +
+        "CUX+2:EUR:9'\n" +
+        "PAT+22+++2:3:0'\n" +
+        "LIN+1++3017620412345:EN'\n" +
+        "QTY+47:144:PCE'\n" +
+        "PRI+AAA:0.958::NTP::PCE'\n" +
+        "MOA+203:138.352'\n" +
+        "TAX+7+VAT+++:::20+S'\n" +
+        "UNS+S'\n" +
+        "CNT+2:1'\n" +
+        "MOA+9:165.99'",
+};
+
+function loadScenario(type) {
+    app.switchMessageType(type, false);
+    app.setLoadedEdiFiles([{ filename: `test_${type.toLowerCase()}.edi`, content: TEST_EDI[type] }]);
+    app.analyzeEdifactFiles();
+}
 
 // =============================================================================
 console.log('\n== 1. Tokenisation & échappement EDIFACT ==');
@@ -139,11 +201,11 @@ eq(detailSorted.map(s => s.tag).join('>'), 'LIN>PIA>IMD>QTY>PRI', 'DETAIL : LIN>
 const sumSorted = app.sortSegmentsByNorm([mk('SUMMARY', 'MOA', ''), mk('SUMMARY', 'CNT', '')]);
 eq(sumSorted.map(s => s.tag).join('>'), 'CNT>MOA', 'SUMMARY : CNT avant MOA');
 
-console.log('\n== 6. Scénario de démo ORDERS de bout en bout ==');
-app.loadDemoScenario('ORDERS');
+console.log('\n== 6. Scénario ORDERS de bout en bout ==');
+loadScenario('ORDERS');
 eq(app.getActiveMessageType(), 'ORDERS', 'Flux actif : ORDERS');
 const ordFields = app.getDetectedFields();
-ok(ordFields.length > 10, `Champs détectés sur la démo ORDERS (${ordFields.length} > 10)`);
+ok(ordFields.length > 10, `Champs détectés sur le scénario ORDERS (${ordFields.length} > 10)`);
 const ordPaths = ordFields.map(f => f.targetXmlPath);
 eq(new Set(ordPaths).size, ordPaths.length, 'Aucun doublon de chemin XML cible');
 ok(ordPaths.every(p => p && p.includes('.')), 'Tous les chemins cibles renseignés');
@@ -176,7 +238,7 @@ ok(!/(:|\+|\?)'/.test(ordEdi), 'Aucun séparateur pendant en fin de segment');
 ok(!/[^\?][+:']/.test(ordEdi.split(/\r?\n/).filter(l => l.includes('FTX') || l.includes('NAD')).join('') ) || true, 'Skip validation large');
 
 console.log('\n== 7. Scénarios DESADV et INVOIC ==');
-app.loadDemoScenario('DESADV');
+loadScenario('DESADV');
 eq(app.getActiveMessageType(), 'DESADV', 'Flux actif : DESADV');
 const desEdi = app.buildCompletedEdi();
 ok(desEdi.includes('UNT+'), 'Master DESADV : UNT présent');
@@ -185,7 +247,7 @@ if (desEdi.includes('CPS')) {
     ok(desEdi.indexOf('CPS') < desEdi.indexOf('UNS+S'), 'DESADV : CPS avant UNS+S');
 }
 
-app.loadDemoScenario('INVOIC');
+loadScenario('INVOIC');
 eq(app.getActiveMessageType(), 'INVOIC', 'Flux actif : INVOIC');
 const invEdi = app.buildCompletedEdi();
 ok(invEdi.includes('UNT+'), 'Master INVOIC : UNT présent');
@@ -195,7 +257,7 @@ eq(new Set(invPaths).size, invPaths.length, 'INVOIC : aucun doublon de chemin XM
 
 console.log('\n== 8. Génération de valeurs typées ==');
 // GLN/GTIN : extraire un NAD du Master ORDERS et vérifier le format 13 chiffres
-app.loadDemoScenario('ORDERS');
+loadScenario('ORDERS');
 const nadLine = app.buildCompletedEdi().split(/\r?\n/).find(l => l.startsWith('NAD+') && /:14|::9/.test(l));
 ok(nadLine && /\+\d{13}[:+]/.test(nadLine), 'Master ORDERS : GLN à 13 chiffres dans NAD');
 // Prix : PRI01.2 avec 3 décimales
@@ -204,7 +266,7 @@ ok(priLine && /PRI\+(?:AAA:)?\d+\.\d{3}/.test(priLine), 'Master ORDERS : prix PR
 
 console.log('\n== 9. Non-régression doublons — scénario FTX multiples (cas capture) ==');
 // Reproduit le bug signalé : FTX+INV / FTX+PUR / FTX+ZZZ doivent obtenir des chemins uniques
-app.loadDemoScenario('INVOIC');
+loadScenario('INVOIC');
 app.setLoadedEdiFiles([{
     filename: 'regression.inv',
     content: "UNH+1+INVOIC:D:96A:UN:EAN008'\n" +
@@ -245,7 +307,7 @@ ok(treeRows.filter(r => !r.isLeafRow).every(r => r.depth === app.splitXmlPath(r.
 eq(treeRows.filter(r => r.isLeafRow && r.parts[r.parts.length - 1] === 'GLN').length, 1, 'Feuille GLN présente');
 
 console.log('\n== 11. Listes de déplacement ==');
-app.loadDemoScenario('ORDERS');
+loadScenario('ORDERS');
 const dests = app.buildMoveOptionsList('OrderHeader.Supplier', ['OrderHeader']);
 ok(dests.includes('OrderHeader'), 'Destination : ancêtre direct proposé');
 ok(!dests.includes('OrderHeader.Supplier'), 'Le chemin déplacé lui-même est exclu');
@@ -258,7 +320,7 @@ ok(leafDests.includes('OrderHeader.Supplier'), 'Feuille : autres mères proposé
 ok(leafDests.includes('EDIXml'), 'Feuille : racine EDIXml proposée');
 
 console.log('\n== 12. Ajout de niveau hiérarchique ==');
-app.loadDemoScenario('ORDERS');
+loadScenario('ORDERS');
 const existingPaths = new Set(app.getDetectedFields().map(f => f.targetXmlPath));
 const before = app.getDetectedFields().map(f => f.targetXmlPath);
 // prompt stubé : nom de la nouvelle balise mère
