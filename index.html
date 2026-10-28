@@ -2003,6 +2003,8 @@ function buildTreeOrdering(fields) {
     return ordered;
 }
 
+const INDENT_UNIT = 120;
+
 function renderTable() {
     const search = searchInput.value.toLowerCase().trim();
     const stFilter = statusFilter.value;
@@ -2031,16 +2033,13 @@ function renderTable() {
     ordered.forEach(row => {
         const tr = document.createElement('tr');
 
-        // --- Ligne mère : vide, seul le chemin est affiché, chaque balise éditable ---
+        // --- Ligne mère : une SEULE balise (la plus profonde du chemin), indentée à son niveau ---
         if (!row.isLeafRow) {
             tr.classList.add('row-ancestor');
             const parts = splitXmlPath(row.path);
-            const lastIdx = parts.length - 1;
-            const indent = (parts.length - 1) * 16;
-            const inputs = parts.map((p, i) =>
-                `<input type="text" class="xml-input ancestor-input" data-anc="${i}" data-path="${escapeHtml(row.path)}"
-                    value="${escapeHtml(p)}" ${i === lastIdx ? '' : 'style="color: #64748b;"'}>`
-            ).join('<span style="color: #cbd5e1; font-family: var(--font-mono);">.</span>');
+            const ancIdx = parts.length - 1;
+            const ancName = parts[ancIdx];
+            const indent = ancIdx * INDENT_UNIT;
 
             tr.innerHTML = `
                 <td></td>
@@ -2052,7 +2051,10 @@ function renderTable() {
                 <td></td>
                 <td></td>
                 <td style="padding-left: ${indent}px;">
-                    <div class="tree-branch">${inputs}</div>
+                    <div class="tree-branch">
+                        <input type="text" class="xml-input ancestor-input" data-anc="${ancIdx}" data-path="${escapeHtml(row.path)}"
+                            value="${escapeHtml(ancName)}">
+                    </div>
                 </td>
             `;
             tableBody.appendChild(tr);
@@ -2084,7 +2086,7 @@ function renderTable() {
         const parts = row.parts;
         const leafName = parts[parts.length - 1];
         const parentPath = parts.slice(0, -1).join('.');
-        const indent = (parts.length - 1) * 16;
+        const indent = (parts.length - 1) * INDENT_UNIT;
 
         // Options de relocalisation : tous les ancêtres connus du lot
         const allAncestorPaths = new Set();
