@@ -44,3 +44,14 @@ Des jeux de démonstration (`ORDERS`, `DESADV`, `INVOIC`) sont intégrés pour t
 | Fichier | Description |
 |---|---|
 | `index.html` | Application autonome (HTML5/CSS3/JS vanilla, fichier unique) |
+| `tests/run-tests.js` | Tests de non-régression Node.js (tokenisation, échappement, tri normé, démo complets, intégrité UNT) |
+| `.github/workflows/tests.yml` | CI GitHub Actions : exécute les tests à chaque push/PR sur `main` |
+
+## Tests
+
+```bash
+npm install   # installe la dépendance de test uniquement
+npm test       # 42 assertions de non-régression
+```
+
+Les tests rejouent les trois scénarios de démo (ORDERS, DESADV, INVOIC) de bout en bout et vérifient : tokenisation et échappement `?`, filtrage QUAL/DATA, détection de flux, dédoublonnage numéroté des chemins XML, tri normé D.96A des segments, exactitude du compteur `UNT`, cohérence `UNH`/`UNT`, absence de séparateurs pendants, et formats typés (GLN 13 chiffres, prix 3 décimales).

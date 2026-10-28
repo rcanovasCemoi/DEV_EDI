@@ -1,0 +1,30 @@
+name: Tests de non-régression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Installation des dépendances de test
+        run: npm ci
+
+      - name: Vérification syntaxe du script embarqué
+        run: node --check tests/run-tests.js
+
+      - name: Tests de non-régression (moteur EDIFACT, gap analysis, Master XML/EDI)
+        run: npm test
