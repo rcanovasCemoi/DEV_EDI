@@ -79,6 +79,7 @@ const loader = new Function(
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
     loadDemoScenario, buildCompletedEdi, analyzeEdifactFiles,
+    countPathLevels, buildHierarchyVisual,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
     getActiveMessageType: function() { return activeMessageType; },
@@ -216,6 +217,18 @@ const ftxPaths = ftxFields.map(f => f.targetXmlPath);
 ok(new Set(ftxPaths).size === ftxPaths.length, 'FTX INV/PUR/ZZZ : aucun doublon de chemin');
 const allPaths = app.getDetectedFields().filter(f => !f.isXmlOnly).map(f => f.targetXmlPath);
 ok(new Set(allPaths).size === allPaths.length, `Aucun doublon global (${allPaths.length} chemins uniques)`);
+
+console.log('\n== 10. Colonne Hiérarchie ==');
+eq(app.countPathLevels('EDIXml'), 1, 'Niveau 1 pour une balise racine (0 point)');
+eq(app.countPathLevels('OrderHeader.FreeText'), 2, 'Niveau 2 (1 point)');
+eq(app.countPathLevels('OrderHeader.Buyer.GLN'), 3, 'Niveau 3 (2 points)');
+eq(app.countPathLevels('OrderHeader.Buyer.Contact.Name'), 4, 'Niveau 4 (3 points)');
+eq(app.countPathLevels(''), 0, 'Chemin vide → niveau 0');
+eq(app.countPathLevels('..'), 0, 'Points seuls → niveau 0 (segments vides ignorés)');
+eq(app.buildHierarchyVisual('EDIXml'), '', 'Niveau 1 : pas de tirets');
+eq(app.buildHierarchyVisual('OrderHeader.FreeText'), '---|', 'Niveau 2 : ---|');
+eq(app.buildHierarchyVisual('OrderHeader.Buyer.GLN'), '---|---|', 'Niveau 3 : ---|---|');
+eq(app.buildHierarchyVisual('OrderHeader.Buyer.Contact.Name'), '---|---|---|', 'Niveau 4 : ---|---|---|');
 
 // =============================================================================
 console.log(`\nRésultat : ${passed} PASS, ${failed} FAIL`);
