@@ -1521,7 +1521,8 @@ function analyzeEdifactFiles() {
                             isCovered: isCovered,
                             isXmlOnly: false,
                             selectedForAdd: !isCovered,
-                            targetXmlPath: targetXmlPath
+                            targetXmlPath: targetXmlPath,
+                            originalXmlPath: targetXmlPath
                         });
                     }
 
@@ -1558,7 +1559,8 @@ function analyzeEdifactFiles() {
                 isCovered: true,
                 isXmlOnly: true,
                 selectedForAdd: false,
-                targetXmlPath: xmlPath
+                targetXmlPath: xmlPath,
+                originalXmlPath: xmlPath
             });
         }
     });
@@ -2312,17 +2314,112 @@ function renderTable() {
  * 7. GÉNÉRATEUR DU FICHIER XML DE RÉFÉRENCE COMPLÉTÉ
  * ============================================================================
  */
+/**
+ * Applique les renommages / déplacements des balises DÉJÀ PRÉSENTES dans le XML
+ * de référence : pour chaque champ couvert dont le chemin a été modifié par
+ * l'utilisateur, la balise existante est déplacée/renommée dans le DOM XML
+ * pour refléter la structure cible. Les valeurs originales sont conservées.
+ */
+function applyXmlRestructuring(xmlDoc) {
+    const rootNode = xmlDoc.documentElement;
+    const docNode = xmlDoc.getElementsByTagName(xmlContainers.docName)[0] || rootNode;
+
+    const restructured = detectedFields.filter(f =>
+        f.originalXmlPath &&
+        f.targetXmlPath &&
+        f.originalXmlPath !== f.targetXmlPath
+    );
+    if (restructured.length === 0) return;
+
+    restructured.forEach(field => {
+        let srcParts = splitXmlPath(field.originalXmlPath);
+        let dstParts = splitXmlPath(field.targetXmlPath);
+        if (srcParts.length === 0 || dstParts.length === 0) return;
+
+        // Base de résolution : EDIXml.* → racine, sinon relatif au document (Order)
+        let srcBase = docNode;
+        if (srcParts[0] === xmlContainers.rootName) {
+            srcBase = rootNode;
+            srcParts = srcParts.slice(1);
+        }
+        let dstBase = docNode;
+        if (dstParts[0] === xmlContainers.rootName) {
+            dstBase = rootNode;
+            dstParts = dstParts.slice(1);
+        }
+        if (srcParts.length === 0 || dstParts.length === 0) return;
+
+        const leafName = srcParts[srcParts.length - 1];
+        const newLeafName = dstParts[dstParts.length - 1];
+
+        // Localiser la balise source dans le DOM (structure d'origine)
+        let srcNode = srcBase;
+        for (let i = 0; i < srcParts.length - 1; i++) {
+            srcNode = Array.from(srcNode.children).find(c => c.tagName === srcParts[i]);
+            if (!srcNode) break;
+        }
+        if (!srcNode) return;
+        let leafNode = Array.from(srcNode.children).find(c => c.tagName === leafName);
+        if (!leafNode) return;
+
+        // Localiser / créer le conteneur de destination
+        let dstNode = dstBase;
+        for (let i = 0; i < dstParts.length - 1; i++) {
+            let next = Array.from(dstNode.children).find(c => c.tagName === dstParts[i]);
+            if (!next) {
+                next = xmlDoc.createElement(dstParts[i]);
+                dstNode.appendChild(next);
+            }
+            dstNode = next;
+        }
+
+        // Renommer (la valeur originale suit), puis déplacer si besoin
+        if (newLeafName !== leafName) {
+            const renamed = xmlDoc.createElement(newLeafName);
+            while (leafNode.firstChild) renamed.appendChild(leafNode.firstChild);
+            Array.from(leafNode.attributes || []).forEach(a => renamed.setAttribute(a.name, a.value));
+            leafNode.parentNode.removeChild(leafNode);
+            leafNode = renamed;
+        }
+        if (dstNode !== leafNode.parentNode) {
+            dstNode.appendChild(leafNode);
+        }
+    });
+
+    // Nettoyage : supprimer les conteneurs devenus vides après déplacement des filles
+    // (ex. groupe UltimateConsignee vidé quand toutes ses balises ont été déplacées)
+    const emptyCleanup = node => {
+        Array.from(node.children).forEach(child => emptyCleanup(child));
+        if (node.children.length === 0 && (node.textContent || '').trim() === '' && node !== rootNode) {
+            // Ne pas supprimer si la balise vide est légitime dans la structure cible
+            const stillTargeted = detectedFields.some(f =>
+                f.targetXmlPath && splitXmlPath(f.targetXmlPath).includes(node.tagName)
+            );
+            const wasNeverTargeted = !detectedFields.some(f =>
+                f.originalXmlPath && f.originalXmlPath !== f.targetXmlPath &&
+                splitXmlPath(f.originalXmlPath).includes(node.tagName)
+            );
+            if (!stillTargeted && !wasNeverTargeted && node.parentNode) {
+                node.parentNode.removeChild(node);
+            }
+        }
+    };
+    emptyCleanup(docNode);
+}
+
 function buildCompletedXml() {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(currentXmlString, 'application/xml');
     const useRandomValues = fillXmlRandomValues.checked;
 
     const rootNode = xmlDoc.documentElement;
-    const docNode = xmlDoc.querySelector(xmlContainers.docName) || rootNode;
-    const headerNode = xmlDoc.querySelector(xmlContainers.headerName);
-    const detailNode = xmlDoc.querySelector(xmlContainers.detailName);
-    const allItemNodes = detailNode ? Array.from(detailNode.querySelectorAll(xmlContainers.itemName)) : [];
-    let summaryNode = xmlDoc.querySelector(xmlContainers.summaryName);
+    const docNode = xmlDoc.getElementsByTagName(xmlContainers.docName)[0] || rootNode;
+    const headerNode = xmlDoc.getElementsByTagName(xmlContainers.headerName)[0];
+    const detailNode = xmlDoc.getElementsByTagName(xmlContainers.detailName)[0];
+    const allItemNodes = detailNode ? Array.from(detailNode.getElementsByTagName(xmlContainers.itemName)) : [];
+    let summaryNode = xmlDoc.getElementsByTagName(xmlContainers.summaryName)[0];
+
+    applyXmlRestructuring(xmlDoc);
 
     const fieldsToAdd = detectedFields.filter(f => !f.isXmlOnly && !f.isCovered && f.selectedForAdd && f.targetXmlPath);
     const addedPathsTracker = new Set(existingXmlMap.keys());

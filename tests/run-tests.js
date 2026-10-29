@@ -78,7 +78,7 @@ const loader = new Function(
     splitEdifact, extractQualifier, isTechnicalQualifierPosition,
     escapeEdifactValue, registerTargetXmlPath,
     sortSegmentsByNorm, detectEdifactMessageType,
-    switchMessageType, buildCompletedEdi, analyzeEdifactFiles,
+    switchMessageType, buildCompletedEdi, buildCompletedXml, analyzeEdifactFiles,
     countPathLevels, splitXmlPath, buildTreeOrdering, buildMoveOptionsList, insertIntermediateLevel,
     getDetectedFields: function() { return detectedFields; },
     getMergedEdiTemplates: function() { return mergedEdiTemplates; },
@@ -333,6 +333,31 @@ ok(untouched.length === 0, 'Les autres champs ne sont pas modifiés');
 // Cas annulation : prompt → null
 const createdNull = app.insertIntermediateLevel('OrderHeader', 'OrderHeader.Currency', false);
 eq(createdNull, null, 'Annulation du prompt → null, aucun changement');
+
+console.log('\n== 13. Restructuration du XML exporté (balises déjà présentes) ==');
+loadScenario('ORDERS');
+const xmlBefore = app.buildCompletedXml();
+ok(/<OrderDate>/.test(xmlBefore), 'Avant : <OrderDate> présent dans le XML');
+const odField = app.getDetectedFields().find(f => f.targetXmlPath === 'OrderHeader.OrderDate');
+ok(Boolean(odField) && odField.isCovered, 'Champ OrderDate couvert trouvé');
+odField.targetXmlPath = 'OrderHeader.PurchaseOrderDate';
+const xmlAfter = app.buildCompletedXml();
+ok(/<PurchaseOrderDate>/.test(xmlAfter), 'Après : <PurchaseOrderDate> dans le XML exporté');
+ok(!/<OrderDate>/.test(xmlAfter), 'Après : ancien <OrderDate> disparu');
+const ftField = app.getDetectedFields().find(f => f.targetXmlPath === 'OrderHeader.FreeText' && !f.isXmlOnly);
+if (ftField) {
+    ftField.targetXmlPath = 'OrderHeader.Buyer.InternalNote';
+    const xmlMoved = app.buildCompletedXml();
+    ok(/<Buyer>[\s\S]*?<InternalNote/.test(xmlMoved), 'Déplacement : balise sous <Buyer><InternalNote>');
+    ok(!/<OrderHeader>\n\s+<FreeText/.test(xmlMoved), 'Déplacement : plus de <FreeText> direct sous OrderHeader');
+}
+const ucFields = app.getDetectedFields().filter(f => f.targetXmlPath && f.targetXmlPath.startsWith('OrderHeader.UltimateConsignee'));
+ok(ucFields.length > 0, 'Champs du groupe UltimateConsignee détectés');
+ucFields.forEach(f => { f.targetXmlPath = f.targetXmlPath.replace('UltimateConsignee', 'FinalCustomer'); });
+const xmlGroup = app.buildCompletedXml();
+ok(/<FinalCustomer>/.test(xmlGroup), 'Groupe renommé : <FinalCustomer> présent');
+ok(!/<UltimateConsignee>/.test(xmlGroup), 'Groupe renommé : <UltimateConsignee> supprimé');
+ok(/<FinalCustomer>[\s\S]*?<GLN\//.test(xmlGroup), 'Groupe renommé : filles intactes dans FinalCustomer');
 
 // =============================================================================
 console.log(`\nRésultat : ${passed} PASS, ${failed} FAIL`);
