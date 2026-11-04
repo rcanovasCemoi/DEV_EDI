@@ -43,17 +43,31 @@ Le daemon tourne sur un serveur Linux intermédiaire et gère **deux flux indép
 ```
 SRV_EDI_TRANSFERT_SFTP/
 ├── README.md                  # ce fichier
+├── requirements.txt           # paramiko
 ├── src/
-│   └── edi_sync.py            # daemon (2 flows, threads, queue SQLite, paramiko)
+│   └── edi_sync.py            # daemon (flows en threads, queue SQLite, paramiko)
 ├── config/
 │   └── config.ini.example     # exemple de configuration
 ├── systemd/
 │   └── edi-sync.service       # unité systemd
 ├── install/
 │   └── install.sh             # playbook d'installation sur le serveur cible
+├── tests/
+│   └── test_edi_sync.py       # tests unitaires (logique pure, sans SFTP)
 └── docs/
     └── architecture.md        # détails d'architecture
 ```
+
+## Tests
+
+```bash
+cd SRV_EDI_TRANSFERT_SFTP
+python -m py_compile src/edi_sync.py
+python -m unittest discover -s tests -v
+python src/edi_sync.py --config config/config.ini.example --check
+```
+
+Les tests unitaires couvrent la logique pure (config, queue SQLite, stabilité, backoff, nommage) sans dépendance à paramiko ni à un serveur SFTP. La CI GitHub Actions les rejoue à chaque push/PR sur ce sous-dossier.
 
 ## Configuration
 

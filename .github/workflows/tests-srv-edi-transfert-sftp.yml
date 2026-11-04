@@ -1,0 +1,34 @@
+name: Tests SRV_EDI_TRANSFERT_SFTP
+
+on:
+  push:
+    branches: [main]
+    paths: ['SRV_EDI_TRANSFERT_SFTP/**', '.github/workflows/tests-srv-edi-transfert-sftp.yml']
+  pull_request:
+    branches: [main]
+    paths: ['SRV_EDI_TRANSFERT_SFTP/**', '.github/workflows/tests-srv-edi-transfert-sftp.yml']
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SRV_EDI_TRANSFERT_SFTP
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verification syntaxe
+        run: python -m py_compile src/edi_sync.py tests/test_edi_sync.py
+
+      - name: Tests unitaires (sans paramiko, logique pure)
+        run: python -m unittest discover -s tests -v
+
+      - name: Verification config exemple
+        run: python src/edi_sync.py --config config/config.ini.example --check
