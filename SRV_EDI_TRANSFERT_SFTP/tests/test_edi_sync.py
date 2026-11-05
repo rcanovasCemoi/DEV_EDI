@@ -165,9 +165,9 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(es.backoff_delay(99), 3600)
 
     def test_fingerprint_normalize(self):
-        self.assertEqual(es.normalize_fingerprint("SHA256:ABC=="), "sha256:abc")
-        self.assertEqual(es.normalize_fingerprint("abc"), "sha256:abc")
-        self.assertEqual(es.normalize_fingerprint(""), "sha256:")
+        self.assertEqual(es.normalize_fingerprint("SHA256:AbC=="), "sha256:AbC")
+        self.assertEqual(es.normalize_fingerprint("AbC"), "sha256:AbC")
+        self.assertEqual(es.normalize_fingerprint("sha256:"), "sha256:")
 
 
 class TestMonitoringConfig(unittest.TestCase):
@@ -317,6 +317,55 @@ class TestMonitoringServer(unittest.TestCase):
                 self.assertEqual(r.status, 200)
         finally:
             self._stop(mon)
+
+
+class _FakeTransport:
+    def is_active(self):
+        return True
+
+
+class _FakeClient:
+    def get_transport(self):
+        return _FakeTransport()
+
+
+class _FakeSftp:
+    def __init__(self, existing):
+        self.existing = set(existing)
+        self.created = []
+
+    def mkdir(self, p):
+        if p in self.existing:
+            raise OSError("failure")
+        self.created.append(p)
+
+    def stat(self, p):
+        if p in self.existing or p in self.created:
+            return object()
+        return None
+
+
+class TestMkdirs(unittest.TestCase):
+    def _endpoint(self, fake):
+        ep = es.SftpEndpoint(es.SftpConfig(name="sftp1", host="h", port=22, user="u", key_file="k"))
+        ep._client = _FakeClient()
+        ep._sftp = fake
+        return ep
+
+    def test_existing_dirs_are_ok(self):
+        fake = _FakeSftp(existing={"/", "/archive"})
+        self._endpoint(fake).mkdirs("/archive/flow_a")
+        self.assertIn("/archive/flow_a", fake.created)
+
+    def test_missing_parent_raises(self):
+        class AlwaysFail:
+            def mkdir(self, p):
+                raise OSError("failure")
+
+            def stat(self, p):
+                return object() if p == "/" else None
+        with self.assertRaises(OSError):
+            self._endpoint(AlwaysFail()).mkdirs("/archive/flow_a")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@
 import argparse
 import base64
 import configparser
-import errno
 import hashlib
 import html
 import json
@@ -30,7 +29,9 @@ try:
 except ImportError:
     paramiko = None
 
-SSH_ERRORS = (paramiko.SSHException, EOFError, OSError) if paramiko is not None else (EOFError, OSError)
+RECONNECT_ERRORS = (EOFError, ConnectionError, TimeoutError)
+if paramiko is not None:
+    RECONNECT_ERRORS = (paramiko.SSHException,) + RECONNECT_ERRORS
 
 PENDING = "pending"
 DONE = "done"
@@ -83,10 +84,13 @@ def fingerprint_of(server_key) -> str:
 
 
 def normalize_fingerprint(fp: str) -> str:
-    fp = (fp or "").strip().lower()
-    if fp.startswith("sha256:"):
-        fp = fp[len("sha256:"):]
-    return "sha256:" + fp.rstrip("=")
+    fp = (fp or "").strip()
+    prefix = "sha256:"
+    if fp.lower().startswith(prefix):
+        fp = prefix + fp[len(prefix):]
+    else:
+        fp = prefix + fp
+    return fp.rstrip("=")
 
 
 @dataclass
@@ -261,6 +265,14 @@ class StabilityTracker:
         self._state.pop(name, None)
 
 
+if paramiko is not None:
+    class _AcceptOncePolicy(paramiko.MissingHostKeyPolicy):
+        def missing_host_key(self, client, hostname, key):
+            pass
+else:
+    _AcceptOncePolicy = None
+
+
 class SftpEndpoint:
     def __init__(self, cfg: SftpConfig):
         self.cfg = cfg
@@ -272,7 +284,11 @@ class SftpEndpoint:
             raise RuntimeError("paramiko non installe (pip install -r requirements.txt)")
         pkey = None
         last_exc = None
-        for key_cls in (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey, paramiko.DSSKey):
+        key_classes = [paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey]
+        dss_key = getattr(paramiko, "DSSKey", None)
+        if dss_key is not None:
+            key_classes.append(dss_key)
+        for key_cls in key_classes:
             try:
                 pkey = key_cls.from_private_key_file(self.cfg.key_file)
                 break
@@ -281,7 +297,7 @@ class SftpEndpoint:
         if pkey is None:
             raise RuntimeError(f"cle {self.cfg.key_file} illisible: {last_exc}")
         client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        client.set_missing_host_key_policy(_AcceptOncePolicy())
         client.connect(
             hostname=self.cfg.host,
             port=self.cfg.port,
@@ -326,7 +342,7 @@ class SftpEndpoint:
             try:
                 self._ensure()
                 return fn(self._sftp, *args)
-            except SSH_ERRORS as exc:
+            except RECONNECT_ERRORS as exc:
                 last = exc
                 self._close()
         raise last
@@ -377,18 +393,18 @@ class SftpEndpoint:
                 cur = posixpath.join(cur, seg)
                 try:
                     sftp.mkdir(cur)
-                except OSError as exc:
-                    if exc.errno != errno.EEXIST:
+                except OSError:
+                    if sftp.stat(cur) is None:
                         raise
         return self._call(fn, path)
 
 
 class FlowWorker(threading.Thread):
-    def __init__(self, flow: FlowConfig, endpoints: dict, queue: TransferQueue, cfg: Config, log, stop_event):
+    def __init__(self, flow: FlowConfig, src: SftpEndpoint, dst: SftpEndpoint, queue: TransferQueue, cfg: Config, log, stop_event):
         super().__init__(name=f"flow-{flow.name}", daemon=True)
         self.flow = flow
-        self.src = endpoints[flow.source]
-        self.dst = endpoints[flow.dest]
+        self.src = src
+        self.dst = dst
         self.queue = queue
         self.cfg = cfg
         self.log = log
@@ -422,7 +438,7 @@ class FlowWorker(threading.Thread):
             if self.tracker.update(name, size):
                 if self.queue.enqueue(self.flow.name, name, size, mtime):
                     self.log.info("nouveau fichier detecte", extra={
-                        "flow": self.flow.name, "event": "detected", "filename": name, "size": size})
+                        "flow": self.flow.name, "event": "detected", "file": name, "size": size})
                 self.tracker.discard(name)
         self.tracker.forget_missing(names)
         self.process_pending()
@@ -445,7 +461,7 @@ class FlowWorker(threading.Thread):
             if src_attr is None:
                 self.queue.mark(row["id"], DONE)
                 self.log.warning("fichier source disparu entre-temps, marque done", extra={
-                    "flow": flow, "event": "vanished", "filename": fname})
+                    "flow": flow, "event": "vanished", "file": fname})
                 return
             self.src.get(src_path, str(local))
             local_size = local.stat().st_size
@@ -465,25 +481,25 @@ class FlowWorker(threading.Thread):
                 self.dst.rename(tmp_remote, final_remote)
             else:
                 self.log.info("fichier deja livre (meme taille), on archive la source", extra={
-                    "flow": flow, "event": "already_delivered", "filename": fname})
+                    "flow": flow, "event": "already_delivered", "file": fname})
             self._archive_source(src_path, fname)
             self.queue.mark(row["id"], DONE, last_error=None)
             self.log.info("transfert OK", extra={
-                "flow": flow, "event": "transferred", "filename": fname,
+                "flow": flow, "event": "transferred", "file": fname,
                 "dest": final_remote, "size": local_size})
         except Exception as exc:
             attempts = row["attempts"] + 1
             if attempts >= self.cfg.max_retries:
                 self.queue.mark(row["id"], FAILED, attempts=attempts, last_error=str(exc))
-                self.log.error("transfert en echec definitif", extra={
-                    "flow": flow, "event": "failed", "filename": fname,
+                self.log.error("transfert en echec definitif", exc_info=True, extra={
+                    "flow": flow, "event": "failed", "file": fname,
                     "attempts": attempts, "error": str(exc)})
             else:
                 delay = backoff_delay(attempts)
                 self.queue.mark(row["id"], PENDING, attempts=attempts,
                                 next_attempt=now() + delay, last_error=str(exc))
-                self.log.warning("transfert en erreur, nouvelle tentative programmee", extra={
-                    "flow": flow, "event": "retry", "filename": fname,
+                self.log.warning("transfert en erreur, nouvelle tentative programmee", exc_info=True, extra={
+                    "flow": flow, "event": "retry", "file": fname,
                     "attempts": attempts, "delay_sec": delay, "error": str(exc)})
         finally:
             try:
@@ -526,7 +542,7 @@ class PurgeWorker(threading.Thread):
     def purge_all(self):
         cutoff = time.time() - self.cfg.archive_retention_days * 86400
         for flow in self.flows:
-            endpoint = self.endpoints[flow.source]
+            endpoint = self.endpoints[flow.name]
             try:
                 entries = endpoint.list_files(flow.archive_dir)
             except Exception:
@@ -535,7 +551,7 @@ class PurgeWorker(threading.Thread):
                 if mtime < cutoff:
                     endpoint.remove(posixpath.join(flow.archive_dir, name))
                     self.log.info("archive purgee", extra={
-                        "flow": flow.name, "event": "purged", "filename": name})
+                        "flow": flow.name, "event": "purged", "file": name})
 
 
 class EventRing:
@@ -564,7 +580,7 @@ class RingHandler(logging.Handler):
             "msg": record.getMessage(),
             "flow": getattr(record, "flow", None),
             "event": getattr(record, "event", None),
-            "filename": getattr(record, "filename", None),
+            "file": getattr(record, "file", None),
         })
 
 
@@ -625,7 +641,7 @@ def render_page(status: dict) -> str:
     items = "".join(
         f"<li><span class='ts'>{esc(e.get('ts'))}</span> <span class='lvl'>{esc(e.get('level'))}</span> "
         f"[{esc(e.get('flow') or '-')}] <b>{esc(e.get('event') or '')}</b> "
-        f"{esc(e.get('filename') or '')} {esc(e.get('msg') or '')}</li>"
+        f"{esc(e.get('file') or '')} {esc(e.get('msg') or '')}</li>"
         for e in status["events"])
     css = ("body{font-family:system-ui,sans-serif;margin:2rem;background:#f6f7f9;color:#222}"
            "h1{font-size:1.3rem} table{border-collapse:collapse;background:#fff;width:100%}"
@@ -756,7 +772,7 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "msg": record.getMessage(),
         }
-        for key in ("flow", "event", "filename", "size", "dest", "attempts", "delay_sec", "error", "signal"):
+        for key in ("flow", "event", "file", "size", "dest", "attempts", "delay_sec", "error", "signal"):
             if key in record.__dict__:
                 payload[key] = record.__dict__[key]
         return json.dumps(payload, ensure_ascii=False)
@@ -796,7 +812,6 @@ def main(argv=None) -> int:
     state = Path(cfg.state_dir)
     (state / "staging").mkdir(parents=True, exist_ok=True)
     queue = TransferQueue(state / "queue.db")
-    endpoints = {name: SftpEndpoint(c) for name, c in cfg.sftps.items()}
     started_at = time.time()
 
     stop_event = threading.Event()
@@ -808,8 +823,12 @@ def main(argv=None) -> int:
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    workers = [FlowWorker(f, endpoints, queue, cfg, log, stop_event) for f in cfg.flows]
-    purge = PurgeWorker(cfg.flows, endpoints, cfg, log, stop_event)
+    workers = []
+    for f in cfg.flows:
+        workers.append(FlowWorker(f, SftpEndpoint(cfg.sftps[f.source]), SftpEndpoint(cfg.sftps[f.dest]),
+                                  queue, cfg, log, stop_event))
+    purge = PurgeWorker(cfg.flows, {f.name: SftpEndpoint(cfg.sftps[f.source]) for f in cfg.flows},
+                        cfg, log, stop_event)
     for w in workers:
         w.start()
     purge.start()
