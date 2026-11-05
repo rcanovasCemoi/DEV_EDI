@@ -1,8 +1,14 @@
+import base64
+import hashlib
+import json
 import os
 import sys
 import tempfile
 import time
 import unittest
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -162,6 +168,155 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(es.normalize_fingerprint("SHA256:ABC=="), "sha256:abc")
         self.assertEqual(es.normalize_fingerprint("abc"), "sha256:abc")
         self.assertEqual(es.normalize_fingerprint(""), "sha256:")
+
+
+class TestMonitoringConfig(unittest.TestCase):
+    def _write(self, text):
+        fd, path = tempfile.mkstemp(suffix=".ini")
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        self.addCleanup(os.unlink, path)
+        return path
+
+    def test_defaults(self):
+        cfg = es.load_config(self._write(VALID_INI))
+        self.assertTrue(cfg.monitoring.enabled)
+        self.assertEqual(cfg.monitoring.bind, "127.0.0.1")
+        self.assertEqual(cfg.monitoring.port, 8443)
+
+    def test_section_monitoring(self):
+        digest = hashlib.sha256(b"secret").hexdigest()
+        ini = VALID_INI + ("\n[monitoring]\nenabled = true\nbind = 127.0.0.1\nport = 9443\n"
+                           f"auth_user = admin\nauth_password_sha256 = {digest}\n")
+        cfg = es.load_config(self._write(ini))
+        self.assertEqual(cfg.monitoring.port, 9443)
+        self.assertEqual(cfg.monitoring.auth_user, "admin")
+        self.assertEqual(cfg.monitoring.auth_password_sha256, digest)
+
+
+class TestEventRing(unittest.TestCase):
+    def test_recent_order_and_maxlen(self):
+        ring = es.EventRing(maxlen=3)
+        for i in range(5):
+            ring.add({"n": i})
+        self.assertEqual([e["n"] for e in ring.recent(10)], [4, 3, 2])
+
+
+class TestFlowStatus(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.state_dir = self.tmp.name
+        self.queue = es.TransferQueue(Path(self.state_dir) / "queue.db")
+        self.addCleanup(self.queue.close)
+        self.flow = es.FlowConfig(name="flow_a", source="sftp1", source_dir="/out",
+                                  dest="sftp2", dest_dir="/in", archive_dir="/archive/flow_a")
+
+    def _heartbeat(self, dt):
+        (Path(self.state_dir) / "heartbeat_flow_a").write_text(dt.isoformat())
+
+    def test_ok(self):
+        self._heartbeat(datetime.now(timezone.utc))
+        st = es.flow_status(self.queue, self.flow, self.state_dir, 5)
+        self.assertEqual(st["status"], "ok")
+        self.assertEqual(st["source"], "sftp1:/out")
+        self.assertEqual(st["dest"], "sftp2:/in")
+
+    def test_stale(self):
+        self._heartbeat(datetime.now(timezone.utc) - timedelta(hours=1))
+        st = es.flow_status(self.queue, self.flow, self.state_dir, 5)
+        self.assertEqual(st["status"], "stale")
+
+    def test_failed_is_error(self):
+        self._heartbeat(datetime.now(timezone.utc))
+        self.queue.enqueue("flow_a", "f.edi", 1, 1)
+        row = self.queue.next_pending("flow_a", 5)
+        self.queue.mark(row["id"], es.FAILED, attempts=5)
+        st = es.flow_status(self.queue, self.flow, self.state_dir, 5)
+        self.assertEqual(st["status"], "error")
+
+    def test_no_heartbeat_is_unknown(self):
+        st = es.flow_status(self.queue, self.flow, self.state_dir, 5)
+        self.assertEqual(st["status"], "unknown")
+
+
+class TestMonitoringServer(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.state_dir = self.tmp.name
+        self.queue = es.TransferQueue(Path(self.state_dir) / "queue.db")
+        self.addCleanup(self.queue.close)
+        self.flow = es.FlowConfig(name="flow_a", source="sftp1", source_dir="/out",
+                                  dest="sftp2", dest_dir="/in", archive_dir="/archive/flow_a")
+        self.events = es.EventRing()
+        mcfg = es.MonitoringConfig(enabled=True, bind="127.0.0.1", port=0)
+        self.mon = es.MonitoringServer(mcfg, self.queue, [self.flow], self.events,
+                                       self.state_dir, 5, time.time(), use_tls=False)
+        self.mon.start()
+        self._wait_ready(self.mon)
+        self.port = self.mon.httpd.server_address[1]
+        self.addCleanup(self._stop, self.mon)
+
+    def _wait_ready(self, mon):
+        for _ in range(100):
+            if mon.httpd is not None:
+                return
+            time.sleep(0.05)
+        raise RuntimeError("serveur de monitoring non demarre")
+
+    def _stop(self, mon):
+        mon.stop()
+        mon.join(timeout=5)
+
+    def _get(self, path, headers=None):
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", headers=headers or {})
+        return urllib.request.urlopen(req, timeout=5)
+
+    def test_health(self):
+        with self._get("/health") as r:
+            self.assertEqual(r.status, 200)
+            self.assertEqual(r.read().decode(), "ok")
+
+    def test_api_status_json(self):
+        with self._get("/api/status") as r:
+            data = json.loads(r.read().decode())
+        self.assertIn("flow_a", data["flows"])
+        self.assertEqual(data["flows"]["flow_a"]["status"], "unknown")
+        self.assertIn("uptime_sec", data)
+
+    def test_index_html(self):
+        with self._get("/") as r:
+            body = r.read().decode()
+        self.assertEqual(r.status, 200)
+        self.assertIn("edi-sync", body)
+        self.assertIn("flow_a", body)
+
+    def test_404(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self._get("/nope")
+        self.assertEqual(ctx.exception.code, 404)
+
+    def test_basic_auth(self):
+        mcfg = es.MonitoringConfig(enabled=True, bind="127.0.0.1", port=0,
+                                    auth_user="admin",
+                                    auth_password_sha256=hashlib.sha256(b"secret").hexdigest())
+        mon = es.MonitoringServer(mcfg, self.queue, [self.flow], self.events,
+                                  self.state_dir, 5, time.time(), use_tls=False)
+        mon.start()
+        self._wait_ready(mon)
+        port = mon.httpd.server_address[1]
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=5)
+            self.assertEqual(ctx.exception.code, 401)
+            token = base64.b64encode(b"admin:secret").decode()
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/api/status",
+                                         headers={"Authorization": f"Basic {token}"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                self.assertEqual(r.status, 200)
+        finally:
+            self._stop(mon)
 
 
 if __name__ == "__main__":

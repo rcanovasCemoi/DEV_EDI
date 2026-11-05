@@ -45,7 +45,7 @@ SRV_EDI_TRANSFERT_SFTP/
 ├── README.md                  # ce fichier
 ├── requirements.txt           # paramiko
 ├── src/
-│   └── edi_sync.py            # daemon (flows en threads, queue SQLite, paramiko)
+│   └── edi_sync.py            # daemon (flows + monitoring HTTPS en threads, queue SQLite, paramiko)
 ├── config/
 │   └── config.ini.example     # exemple de configuration
 ├── systemd/
@@ -53,9 +53,9 @@ SRV_EDI_TRANSFERT_SFTP/
 ├── install/
 │   └── install.sh             # playbook d'installation sur le serveur cible
 ├── tests/
-│   └── test_edi_sync.py       # tests unitaires (logique pure, sans SFTP)
+│   └── test_edi_sync.py       # tests unitaires (logique pure + serveur HTTP de monitoring, loopback)
 └── docs/
-    └── architecture.md        # détails d'architecture
+    └── architecture.md        # décisions d'architecture détaillées
 ```
 
 ## Tests
@@ -129,6 +129,28 @@ journalctl -u edi-sync -f
 - Heartbeat par flow : `/var/lib/edi-sync/heartbeat_flow_a`, `heartbeat_flow_b`
 - Métriques `pending/done/failed` par flow dans la base SQLite
 - Alerte si heartbeat absent ou si des transferts sont en `failed`
+
+## Monitoring (mini serveur HTTPS embarqué)
+
+Le daemon embarque un serveur HTTPS dans un thread dédié (même process, état partagé avec la queue) :
+
+- **Accès** : bind `127.0.0.1:8443` par défaut — ne jamais binder `0.0.0.0`. Accès distant via tunnel SSH : `ssh -L 8443:127.0.0.1:8443 utilisateur@serveur-edi`, puis ouvrir `https://localhost:8443/`
+- `GET /` : page HTML de suivi des flux (état `ok`/`stale`/`error`, heartbeat, compteurs `pending/done/failed`, 30 derniers événements, auto-refresh 10 s)
+- `GET /api/status` : mêmes données en JSON
+- `GET /health` : sonde `200 ok`
+- Certificat **auto-signé** généré au premier démarrage dans `/var/lib/edi-sync/certs/` (ou cert/key fournis via `tls_cert` / `tls_key` dans `[monitoring]`)
+- **Basic Auth optionnelle** : `auth_user` + `auth_password_sha256` (sha256 du mot de passe, ex. `echo -n 'motdepasse' | sha256sum`)
+
+Exemple de section `[monitoring]` (voir `config/config.ini.example`) :
+
+```ini
+[monitoring]
+enabled = true
+bind = 127.0.0.1
+port = 8443
+auth_user = admin
+auth_password_sha256 = <sha256 du mot de passe>
+```
 
 ## Sécurité
 

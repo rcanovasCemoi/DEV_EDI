@@ -32,3 +32,15 @@ source_dir = /out
 dest = sftp1
 dest_dir = /in
 archive_dir = /archive/flow_b
+
+[monitoring]
+enabled = true
+bind = 127.0.0.1
+port = 8443
+# tls_cert / tls_key : laisser vide pour un certificat auto-signe genere dans state_dir/certs/
+# tls_cert = /etc/edi-sync/certs/monitoring.crt
+# tls_key = /etc/edi-sync/certs/monitoring.key
+# Basic Auth optionnelle : auth_user + sha256 du mot de passe
+# (ex: echo -n 'motdepasse' | sha256sum)
+# auth_user = admin
+# auth_password_sha256 =

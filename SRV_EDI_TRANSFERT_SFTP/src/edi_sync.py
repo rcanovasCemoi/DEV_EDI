@@ -6,18 +6,23 @@ import base64
 import configparser
 import errno
 import hashlib
+import html
 import json
 import logging
 import os
 import posixpath
 import signal
 import sqlite3
+import ssl
 import stat as statmod
+import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 try:
@@ -105,6 +110,17 @@ class FlowConfig:
 
 
 @dataclass
+class MonitoringConfig:
+    enabled: bool = True
+    bind: str = "127.0.0.1"
+    port: int = 8443
+    tls_cert: str = ""
+    tls_key: str = ""
+    auth_user: str = ""
+    auth_password_sha256: str = ""
+
+
+@dataclass
 class Config:
     scan_interval_sec: int = 5
     stability_scans: int = 2
@@ -113,6 +129,7 @@ class Config:
     state_dir: str = "/var/lib/edi-sync"
     sftps: dict = field(default_factory=dict)
     flows: list = field(default_factory=list)
+    monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
 
 
 def load_config(path: str) -> Config:
@@ -164,6 +181,16 @@ def load_config(path: str) -> Config:
             ))
     if not cfg.flows:
         raise ValueError("aucune section [flow*] dans la config")
+
+    if parser.has_section("monitoring"):
+        m = cfg.monitoring
+        m.enabled = parser.getboolean("monitoring", "enabled", fallback=True)
+        m.bind = parser.get("monitoring", "bind", fallback="127.0.0.1")
+        m.port = parser.getint("monitoring", "port", fallback=8443)
+        m.tls_cert = parser.get("monitoring", "tls_cert", fallback="")
+        m.tls_key = parser.get("monitoring", "tls_key", fallback="")
+        m.auth_user = parser.get("monitoring", "auth_user", fallback="")
+        m.auth_password_sha256 = parser.get("monitoring", "auth_password_sha256", fallback="")
     return cfg
 
 
@@ -511,6 +538,217 @@ class PurgeWorker(threading.Thread):
                         "flow": flow.name, "event": "purged", "filename": name})
 
 
+class EventRing:
+    def __init__(self, maxlen=200):
+        self._events = deque(maxlen=maxlen)
+        self._lock = threading.Lock()
+
+    def add(self, item):
+        with self._lock:
+            self._events.append(item)
+
+    def recent(self, n=50):
+        with self._lock:
+            return list(self._events)[-n:][::-1]
+
+
+class RingHandler(logging.Handler):
+    def __init__(self, ring: EventRing):
+        super().__init__()
+        self.ring = ring
+
+    def emit(self, record):
+        self.ring.add({
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "msg": record.getMessage(),
+            "flow": getattr(record, "flow", None),
+            "event": getattr(record, "event", None),
+            "filename": getattr(record, "filename", None),
+        })
+
+
+def read_heartbeat(state_dir: str, flow_name: str):
+    path = Path(state_dir) / f"heartbeat_{flow_name}"
+    try:
+        return datetime.fromisoformat(path.read_text().strip())
+    except Exception:
+        return None
+
+
+def flow_status(queue: TransferQueue, flow: FlowConfig, state_dir: str, scan_interval_sec: int) -> dict:
+    counts = queue.counts(flow.name)
+    hb = read_heartbeat(state_dir, flow.name)
+    age = (datetime.now(timezone.utc) - hb).total_seconds() if hb is not None else None
+    failed = counts.get(FAILED, 0)
+    if failed > 0:
+        status = "error"
+    elif hb is None:
+        status = "unknown"
+    elif age > max(3 * scan_interval_sec, 30):
+        status = "stale"
+    else:
+        status = "ok"
+    return {
+        "name": flow.name,
+        "source": f"{flow.source}:{flow.source_dir}",
+        "dest": f"{flow.dest}:{flow.dest_dir}",
+        "heartbeat": hb.isoformat() if hb else None,
+        "heartbeat_age_sec": round(age, 1) if age is not None else None,
+        "counts": counts,
+        "status": status,
+    }
+
+
+def build_status(queue, flows, events: EventRing, state_dir: str, scan_interval_sec: int, started_at: float) -> dict:
+    return {
+        "service": "edi-sync",
+        "uptime_sec": round(time.time() - started_at, 1),
+        "flows": {f.name: flow_status(queue, f, state_dir, scan_interval_sec) for f in flows},
+        "events": events.recent(30),
+    }
+
+
+def render_page(status: dict) -> str:
+    def esc(v):
+        return html.escape(str(v)) if v is not None else ""
+    cls_map = {"ok": "ok", "stale": "warn", "error": "err", "unknown": "warn"}
+    rows = []
+    for fs in status["flows"].values():
+        cls = cls_map.get(fs["status"], "warn")
+        counts = fs["counts"]
+        rows.append(
+            f"<tr class='{cls}'><td>{esc(fs['name'])}</td><td>{esc(fs['source'])}</td>"
+            f"<td>{esc(fs['dest'])}</td><td>{esc(fs['heartbeat_age_sec'])}</td>"
+            f"<td>{counts.get('pending', 0)}</td><td>{counts.get('done', 0)}</td>"
+            f"<td>{counts.get('failed', 0)}</td><td>{esc(fs['status'])}</td></tr>")
+    items = "".join(
+        f"<li><span class='ts'>{esc(e.get('ts'))}</span> <span class='lvl'>{esc(e.get('level'))}</span> "
+        f"[{esc(e.get('flow') or '-')}] <b>{esc(e.get('event') or '')}</b> "
+        f"{esc(e.get('filename') or '')} {esc(e.get('msg') or '')}</li>"
+        for e in status["events"])
+    css = ("body{font-family:system-ui,sans-serif;margin:2rem;background:#f6f7f9;color:#222}"
+           "h1{font-size:1.3rem} table{border-collapse:collapse;background:#fff;width:100%}"
+           "th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left;font-size:.9rem}"
+           "th{background:#eee} tr.warn{background:#fff8e1} tr.err{background:#fdecea}"
+           "ul{font-family:monospace;font-size:.8rem;background:#fff;border:1px solid #ddd;"
+           "padding:1rem;max-height:40vh;overflow:auto} .ts{color:#888} .lvl{color:#555}")
+    return (
+        "<!doctype html><html lang='fr'><head><meta charset='utf-8'>"
+        "<meta http-equiv='refresh' content='10'><title>edi-sync — monitoring</title>"
+        f"<style>{css}</style></head><body>"
+        "<h1>edi-sync — monitoring des flux</h1>"
+        f"<p>Uptime : {status['uptime_sec']} s — page rafraîchie toutes les 10 s.</p>"
+        "<table><tr><th>Flow</th><th>Source</th><th>Destination</th><th>Heartbeat (s)</th>"
+        "<th>pending</th><th>done</th><th>failed</th><th>État</th></tr>"
+        f"{''.join(rows)}</table>"
+        "<h2>Derniers événements</h2>"
+        f"<ul>{items}</ul></body></html>")
+
+
+class MonitoringHandler(BaseHTTPRequestHandler):
+    server_version = "edi-sync-monitor/1.0"
+
+    def log_message(self, *args):
+        pass
+
+    def _authorized(self) -> bool:
+        mcfg = self.server.mcfg
+        if not mcfg.auth_user:
+            return True
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Basic "):
+            return False
+        try:
+            decoded = base64.b64decode(header[6:]).decode("utf-8")
+        except Exception:
+            return False
+        user, _, password = decoded.partition(":")
+        digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        return user == mcfg.auth_user and digest == mcfg.auth_password_sha256
+
+    def _send(self, code, body, content_type="text/html; charset=utf-8"):
+        data = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _deny(self):
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="edi-sync"')
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_GET(self):
+        if not self._authorized():
+            return self._deny()
+        path = self.path.split("?")[0]
+        if path == "/health":
+            return self._send(200, "ok", "text/plain")
+        if path in ("/", "/index.html", "/api/status"):
+            status = build_status(self.server.queue, self.server.flows, self.server.events,
+                                  self.server.state_dir, self.server.scan_interval_sec,
+                                  self.server.started_at)
+            if path == "/api/status":
+                return self._send(200, json.dumps(status, ensure_ascii=False, indent=2),
+                                  "application/json")
+            return self._send(200, render_page(status))
+        return self._send(404, "not found", "text/plain")
+
+
+def ensure_tls_cert(cert_path: Path, key_path: Path):
+    if cert_path.exists() and key_path.exists():
+        return str(cert_path), str(key_path)
+    cert_path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+         "-keyout", str(key_path), "-out", str(cert_path),
+         "-days", "365", "-subj", "/CN=edi-sync-monitoring"],
+        check=True, capture_output=True)
+    os.chmod(key_path, 0o600)
+    return str(cert_path), str(key_path)
+
+
+class MonitoringServer(threading.Thread):
+    def __init__(self, mcfg, queue, flows, events, state_dir, scan_interval_sec, started_at,
+                 cert=None, key=None, use_tls=True):
+        super().__init__(name="monitoring", daemon=True)
+        self.mcfg = mcfg
+        self.queue = queue
+        self.flows = flows
+        self.events = events
+        self.state_dir = state_dir
+        self.scan_interval_sec = scan_interval_sec
+        self.started_at = started_at
+        self.cert = cert
+        self.key = key
+        self.use_tls = use_tls
+        self.httpd = None
+
+    def run(self):
+        httpd = ThreadingHTTPServer((self.mcfg.bind, self.mcfg.port), MonitoringHandler)
+        httpd.mcfg = self.mcfg
+        httpd.queue = self.queue
+        httpd.flows = self.flows
+        httpd.events = self.events
+        httpd.state_dir = self.state_dir
+        httpd.scan_interval_sec = self.scan_interval_sec
+        httpd.started_at = self.started_at
+        if self.use_tls:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(self.cert, self.key)
+            httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+        self.httpd = httpd
+        httpd.serve_forever(poll_interval=0.5)
+
+    def stop(self):
+        if self.httpd is not None:
+            self.httpd.shutdown()
+            self.httpd.server_close()
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         payload = {
@@ -524,12 +762,14 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-def setup_logging():
+def setup_logging(events: EventRing = None):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.handlers = [handler]
+    if events is not None:
+        root.addHandler(RingHandler(events))
 
 
 def main(argv=None) -> int:
@@ -549,13 +789,15 @@ def main(argv=None) -> int:
               f"{[f.name for f in cfg.flows]}")
         return 0
 
-    setup_logging()
+    events = EventRing()
+    setup_logging(events)
     log = logging.getLogger("edi-sync")
 
     state = Path(cfg.state_dir)
     (state / "staging").mkdir(parents=True, exist_ok=True)
     queue = TransferQueue(state / "queue.db")
     endpoints = {name: SftpEndpoint(c) for name, c in cfg.sftps.items()}
+    started_at = time.time()
 
     stop_event = threading.Event()
 
@@ -571,6 +813,24 @@ def main(argv=None) -> int:
     for w in workers:
         w.start()
     purge.start()
+
+    monitor = None
+    if cfg.monitoring.enabled:
+        try:
+            mcfg = cfg.monitoring
+            cert = mcfg.tls_cert or str(state / "certs" / "monitoring.crt")
+            key = mcfg.tls_key or str(state / "certs" / "monitoring.key")
+            cert, key = ensure_tls_cert(Path(cert), Path(key))
+            monitor = MonitoringServer(mcfg, queue, cfg.flows, events, cfg.state_dir,
+                                       cfg.scan_interval_sec, started_at, cert=cert, key=key)
+            monitor.start()
+            log.info("monitoring HTTPS demarre", extra={
+                "event": "monitoring_start", "bind": mcfg.bind, "port": mcfg.port})
+        except Exception as exc:
+            log.error("monitoring non demarre, le transfert continue", extra={
+                "event": "monitoring_error", "error": str(exc)})
+            monitor = None
+
     log.info("daemon demarre", extra={"event": "startup", "flows": [f.name for f in cfg.flows]})
 
     while not stop_event.is_set():
@@ -579,6 +839,9 @@ def main(argv=None) -> int:
     for w in workers:
         w.join(timeout=30)
     purge.join(timeout=10)
+    if monitor is not None:
+        monitor.stop()
+        monitor.join(timeout=5)
     queue.close()
     log.info("daemon arrete", extra={"event": "stopped"})
     return 0
