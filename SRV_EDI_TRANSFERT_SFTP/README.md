@@ -152,6 +152,10 @@ auth_user = admin
 auth_password_sha256 = <sha256 du mot de passe>
 ```
 
+Aperçu de la page (données de démo servies par le serveur HTTPS réel en local) :
+
+![Page de monitoring](docs/monitoring-ui.png)
+
 ## Sécurité
 
 - Clés SSH dédiées par sens de transfert (`chmod 600`), **pas de mot de passe**
