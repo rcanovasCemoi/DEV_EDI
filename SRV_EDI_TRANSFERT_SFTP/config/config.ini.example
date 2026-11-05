@@ -1,0 +1,46 @@
+[general]
+scan_interval_sec = 5
+stability_scans = 2
+max_retries = 5
+archive_retention_days = 7
+state_dir = /var/lib/edi-sync
+
+[sftp1]
+host = sftp1.exemple.com
+port = 22
+user = edi
+key_file = /etc/edi-sync/keys/id_ed25519_sftp1
+host_fingerprint = sha256:REMPLACER_PAR_L_EMPREINTE_DU_SERVEUR
+
+[sftp2]
+host = sftp2.exemple.com
+port = 22
+user = edi
+key_file = /etc/edi-sync/keys/id_ed25519_sftp2
+host_fingerprint = sha256:REMPLACER_PAR_L_EMPREINTE_DU_SERVEUR
+
+[flow_a]
+source = sftp1
+source_dir = /out
+dest = sftp2
+dest_dir = /in
+archive_dir = /archive/flow_a
+
+[flow_b]
+source = sftp2
+source_dir = /out
+dest = sftp1
+dest_dir = /in
+archive_dir = /archive/flow_b
+
+[monitoring]
+enabled = true
+bind = 127.0.0.1
+port = 8443
+# tls_cert / tls_key : laisser vide pour un certificat auto-signe genere dans state_dir/certs/
+# tls_cert = /etc/edi-sync/certs/monitoring.crt
+# tls_key = /etc/edi-sync/certs/monitoring.key
+# Basic Auth optionnelle : auth_user + sha256 du mot de passe
+# (ex: echo -n 'motdepasse' | sha256sum)
+# auth_user = admin
+# auth_password_sha256 =
