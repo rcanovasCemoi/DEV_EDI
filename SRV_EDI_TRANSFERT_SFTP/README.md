@@ -175,6 +175,6 @@ Aperçu de la page (données de démo servies par le serveur HTTPS réel en loca
 ## Sécurité
 
 - Clés SSH dédiées par sens de transfert (`chmod 600`), **pas de mot de passe**
-- Empreinte du serveur SFTP épinglée (`host_fingerprint`), `StrictHostKeyChecking` effectif
+- Empreintes du serveur SFTP épinglées (`host_fingerprint` : une ou plusieurs `sha256:...` séparées par des virgules — récupérées via `ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -`), vérification à chaque connexion
 - Config et clés lisibles uniquement par l'utilisateur de service `edisync` (et `root`) : `/etc/edi-sync/config.ini` en 600 owner `edisync`, `/etc/edi-sync/keys/` en 700 owner `edisync`, clés en 600
 - Service systemd sandboxé : `NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp`, `ReadWritePaths` limités

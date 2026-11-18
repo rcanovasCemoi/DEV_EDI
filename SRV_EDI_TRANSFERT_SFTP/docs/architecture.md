@@ -51,7 +51,7 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 
 ## Sécurité
 
-- Clés SSH dédiées, `chmod 600`, pas de mot de passe ; empreinte `sha256` du serveur vérifiée à chaque connexion (`RejectPolicy` + comparaison).
+- Clés SSH dédiées, `chmod 600`, pas de mot de passe ; empreintes `sha256` du serveur épinglées (liste séparée par virgules, une par clé d'hôte RSA/ECDSA/ED25519) et vérifiées à chaque connexion.
 - Config et clés dans `/etc/edi-sync/` : dossier `root:root 755`, mais `config.ini` (600) et `keys/` (700 + clés 600) appartiennent à `edisync`, l'utilisateur du service systemd, afin que le daemon puisse les lire sans les exposer aux autres comptes.
 - Service sandboxé : `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `ReadWritePaths=/var/lib/edi-sync /var/log/edi-sync`.
 - Logs JSON sur stdout → journald (`journalctl -u edi-sync -f`).

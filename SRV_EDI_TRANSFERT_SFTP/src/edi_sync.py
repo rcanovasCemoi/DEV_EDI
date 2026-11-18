@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import posixpath
+import re
 import signal
 import sqlite3
 import ssl
@@ -91,6 +92,14 @@ def normalize_fingerprint(fp: str) -> str:
     else:
         fp = prefix + fp
     return fp.rstrip("=")
+
+
+def parse_fingerprints(fp_str: str) -> set:
+    out = set()
+    for part in re.split(r"[,;\s]+", fp_str or ""):
+        if part:
+            out.add(normalize_fingerprint(part))
+    return out
 
 
 @dataclass
@@ -312,11 +321,12 @@ class SftpEndpoint:
         client.get_transport().set_keepalive(30)
         server_key = client.get_transport().get_remote_server_key()
         received = fingerprint_of(server_key)
-        expected = normalize_fingerprint(self.cfg.host_fingerprint)
-        if expected and received != expected:
+        expected = parse_fingerprints(self.cfg.host_fingerprint)
+        if expected and received not in expected:
             client.close()
             raise RuntimeError(
-                f"empreinte du serveur {self.cfg.host} invalide: attendu {expected}, recu {received}")
+                f"empreinte du serveur {self.cfg.host} invalide: recu {received}, "
+                f"attendu une de {sorted(expected)}")
         self._client = client
         self._sftp = client.open_sftp()
 
