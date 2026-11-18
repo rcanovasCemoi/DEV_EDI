@@ -305,10 +305,11 @@ class SftpEndpoint:
             pkey=pkey,
             look_for_keys=False,
             allow_agent=False,
-            timeout=30,
+            timeout=15,
             banner_timeout=30,
             auth_timeout=30,
         )
+        client.get_transport().set_keepalive(30)
         server_key = client.get_transport().get_remote_server_key()
         received = fingerprint_of(server_key)
         expected = normalize_fingerprint(self.cfg.host_fingerprint)
