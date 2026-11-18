@@ -1,38 +1,40 @@
 # SRV_EDI_TRANSFERT_SFTP
 
-Daemon Linux, lancé en tant que **service systemd**, qui transfère en **temps réel** des fichiers EDI d'un serveur SFTP à un autre, de manière **bidirectionnelle** :
+Daemon Linux, lancé en tant que **service systemd**, qui transfère en **temps réel** des fichiers EDI entre deux serveurs SFTP, de manière **bidirectionnelle** (exemple avec babelway/keane) :
 
-- `OUT` du SFTP 1 → `IN` du SFTP 2
-- `OUT` du SFTP 2 → `IN` du SFTP 1
+- `flow_babelway_to_keane` : `/TEST/EDI/OUT` (eu1.babelway.net) → `/opt/ASPEDI_FR/PRODUCTION/ENTREE/BW` (keane.cemoi.fr)
+- `flow_keane_to_babelway` : `/opt/ASPEDI_FR/PRODUCTION/SORTIE/BW` (keane.cemoi.fr) → `/TEST/EDI/IN` (eu1.babelway.net)
 
 ## Architecture
 
 ```
-┌─────────┐     flow A : OUT → IN      ┌─────────┐
-│ SFTP 1  │ ─────────────────────────► │ SFTP 2  │
-│  /out   │   sftp1/out ──► sftp2/in   │  /in    │
-│  /in    │ ◄───────────────────────── │  /out   │
-│ /archive│     flow B : OUT → IN      │ /archive│
-└─────────┘   sftp2/out ──► sftp1/in   └─────────┘
-            (daemon edi-sync au milieu)
+┌──────────────────┐  flow_babelway_to_keane   ┌──────────────────┐
+│  sftp_babelway   │ ─────────────────────────► │    sftp_keane    │
+│  /TEST/EDI/OUT   │  OUT ──► ENTREE/BW        │  .../ENTREE/BW   │
+│  /TEST/EDI/IN    │ ◄───────────────────────── │  .../SORTIE/BW   │
+└──────────────────┘  flow_keane_to_babelway   └──────────────────┘
+        (daemon edi-sync sur le serveur EDI, /opt/EDI/edi-sync)
 ```
 
-Le daemon tourne sur un serveur Linux intermédiaire et gère **deux flux indépendants**, chacun dans son propre thread :
+Le daemon tourne sur un serveur Linux intermédiaire et gère **un thread par flux** (connexions SFTP dédiées par flux) :
 
 | Composant | Rôle |
 |---|---|
-| Scanner (par flux) | Scanne le répertoire `OUT` distant toutes les N secondes, détecte les fichiers nouveaux et *stables* |
-| Queue persistante (SQLite) | Stocke chaque transfert avec son état (`pending`, `downloading`, `uploading`, `done`, `failed`), ses tentatives et ses timestamps |
-| Worker (par flux) | Télécharge vers un répertoire local `staging/`, vérifie la taille, upload vers `IN/.<nom>.tmp` puis **rename atomique** |
-| Superviseur | Reconnexion SFTP automatique, backoff exponentiel, reprise des transferts interrompus au démarrage |
-| Service systemd | `edi-sync.service` : `Restart=always`, utilisateur dédié, sandboxing |
+| Scanner (par flux) | Scanne la **racine** du répertoire source distant toutes les N secondes (pas de récursivité dans les sous-dossiers), détecte les fichiers nouveaux et *stables* |
+| Queue persistante (SQLite) | Stocke chaque transfert avec son état (`pending`, `done`, `failed`), ses tentatives et ses timestamps ; au démarrage, les `failed` sont remis en `pending` |
+| Worker (par flux) | Télécharge vers `staging/`, vérifie la taille source↔local, upload vers `IN/.<nom>.tmp` puis **rename atomique**, archive localement, supprime la source |
+| Purge | Supprime les archives locales de plus de `archive_retention_days` jours (toutes les heures) |
+| Monitoring | Mini serveur HTTPS (voir ci-dessous) |
+| Superviseur | Reconnexion SFTP automatique, keepalive 30 s, backoff exponentiel, arrêt propre sur SIGTERM/SIGINT |
+| Service systemd | `edi-sync.service` (system) ou `edi-sync-user.service` (`--user`) : `Restart=always` |
 
 ## Règles de transfert
 
-- **Anti-boucle** : seuls les répertoires `OUT` sont scannés ; un fichier livré dans `IN` n'est jamais relu.
+- **Anti-boucle** : seuls les répertoires sources (`source_dir`) sont scannés ; un fichier livré côté destination n'est jamais relu.
+- **Scan racine seule** : les sous-dossiers de `source_dir` (ex. `KA/`, `REV/`, `SOL/`, `COPIES/`) **ne sont pas parcourus**.
 - **Fichier stable** : taille inchangée entre 2 scans consécutifs ; les suffixes `.tmp`/`.part` et fichiers cachés sont ignorés.
 - **Anti-doublon** : clé unique `(flow, nom, taille, mtime)` dans la queue SQLite.
-- **Transfert atomique** côté destination : upload en `.<nom>.tmp` puis rename, jamais de fichier partiel visible.
+- **Transfert atomique** côté destination : upload en `.<nom>.tmp` puis rename, jamais de fichier partiel visible. Après le rename, si le fichier n'est plus visible au `stat` (la plateforme peut le déplacer immédiatement), c'est un warning, pas une erreur ; erreur seulement si la taille constatée diffère.
 - **Après succès** : le fichier est archivé **localement** dans `local_archive_dir/<flow>/` (ex. `/opt/EDI/ARCHIVE/flow_babelway_to_keane/`), puis **supprimé du SFTP source**, état `done`.
 - **Purge** : les archives locales sont supprimées automatiquement après N jours (`archive_retention_days`, 7 par défaut).
 - **Conflit de nom** côté `IN` : même nom + même taille = déjà livré (ignoré) ; taille différente = upload sous `<nom>.dup-<timestamp>`.
@@ -49,13 +51,15 @@ SRV_EDI_TRANSFERT_SFTP/
 ├── config/
 │   └── config.ini.example     # exemple de configuration
 ├── systemd/
-│   └── edi-sync.service       # unité systemd
+│   ├── edi-sync.service       # unité systemd (mode system, root)
+│   └── edi-sync-user.service  # unité systemd --user (mode sans root, template __APP_DIR__)
 ├── install/
-│   └── install.sh             # playbook d'installation sur le serveur cible
+│   └── install.sh             # playbook d'installation (modes system / --user [PREFIX])
 ├── tests/
 │   └── test_edi_sync.py       # tests unitaires (logique pure + serveur HTTP de monitoring, loopback)
 └── docs/
-    └── architecture.md        # décisions d'architecture détaillées
+    ├── architecture.md        # décisions d'architecture détaillées
+    └── monitoring-ui.png      # capture de la page de monitoring (données de démo)
 ```
 
 ## Tests
@@ -120,16 +124,16 @@ sudo systemctl enable --now edi-sync
 
 Crée l'utilisateur système `edisync`, déploie le code dans `/opt/edi-sync/`, la config dans `/etc/edi-sync/` (600, owner edisync) + `keys/` (700), l'état dans `/var/lib/edi-sync/` et l'unité systemd système.
 
-**Mode user (sans aucun droit root)** — le daemon tourne sous ton compte, tout dans `~/edi-sync` :
+**Mode user (sans aucun droit root)** — le daemon tourne sous ton compte. Préfixe par défaut `~/edi-sync`, personnalisable (ex. `/opt/EDI/edi-sync`) :
 
 ```bash
 git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
-bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user
-# éditer ~/edi-sync/config.ini : key_file pointent directement vers ~/.ssh/id_rsa_* (pas de copie)
-~/edi-sync/venv/bin/python ~/edi-sync/edi_sync.py --config ~/edi-sync/config.ini --check
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-sync
+# éditer /opt/EDI/edi-sync/config.ini : key_file pointent directement vers ~/.ssh/id_rsa_* (pas de copie)
+/opt/EDI/edi-sync/venv/bin/python /opt/EDI/edi-sync/edi_sync.py --config /opt/EDI/edi-sync/config.ini --check
 systemctl --user enable --now edi-sync
 systemctl --user status edi-sync
-journalctl --user -u edi-sync -f
+journalctl --user -u edi-sync -f    # ou: tail -f /opt/EDI/edi-sync/log/daemon.log si log_file renseigné
 ```
 
 > Pour que le service user démarre aussi sans session ouverte, demander à l'admin root une seule fois : `loginctl enable-linger $USER` (sinon le service démarre à ta première connexion).
@@ -141,8 +145,9 @@ systemctl status edi-sync
 journalctl -u edi-sync -f
 ```
 
-- Heartbeat par flow : `/var/lib/edi-sync/heartbeat_flow_babelway_to_keane`, `heartbeat_flow_keane_to_babelway` (nommés d'après les sections `[flow_*]`)
-- Métriques `pending/done/failed` par flow dans la base SQLite
+- Heartbeat par flow : `<state_dir>/heartbeat_flow_babelway_to_keane`, `heartbeat_flow_keane_to_babelway` (nommés d'après les sections `[flow_*]`)
+- Métriques `pending/done/failed` par flow dans la base SQLite (`<state_dir>/queue.db`)
+- Logs JSON sur stdout (journald) ; option `[general] log_file = /chemin/daemon.log` pour aussi écrire dans un fichier (utile en mode user sans accès au journal). Les erreurs incluent un champ `traceback`
 - Alerte si heartbeat absent ou si des transferts sont en `failed`
 
 ## Monitoring (mini serveur HTTPS embarqué)
@@ -150,8 +155,8 @@ journalctl -u edi-sync -f
 Le daemon embarque un serveur HTTPS dans un thread dédié (même process, état partagé avec la queue) :
 
 - **Accès** : bind `127.0.0.1:8443` par défaut — ne jamais binder `0.0.0.0`. Accès distant via tunnel SSH : `ssh -L 8443:127.0.0.1:8443 utilisateur@serveur-edi`, puis ouvrir `https://localhost:8443/`
-- `GET /` : page HTML de suivi des flux (état `ok`/`stale`/`error`, heartbeat, compteurs `pending/done/failed`, 30 derniers événements, auto-refresh 10 s)
-- `GET /api/status` : mêmes données en JSON
+- `GET /` : page HTML de suivi des flux (état `ok`/`stale`/`error`, heartbeat, compteurs `pending/done/failed`, 30 derniers événements avec leur champ `error`, auto-refresh 10 s)
+- `GET /api/status` : mêmes données en JSON (événements avec `error`)
 - `GET /health` : sonde `200 ok`
 - Certificat **auto-signé** généré au premier démarrage dans `/var/lib/edi-sync/certs/` (ou cert/key fournis via `tls_cert` / `tls_key` dans `[monitoring]`)
 - **Basic Auth optionnelle** : `auth_user` + `auth_password_sha256` (sha256 du mot de passe, ex. `echo -n 'motdepasse' | sha256sum`)
