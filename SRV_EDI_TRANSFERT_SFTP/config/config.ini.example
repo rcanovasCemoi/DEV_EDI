@@ -5,31 +5,31 @@ max_retries = 5
 archive_retention_days = 7
 state_dir = /var/lib/edi-sync
 
-[sftp1]
-host = sftp1.exemple.com
+[sftp_babelway]
+host = sftp-babelway.exemple.com
 port = 22
 user = edi
-key_file = /etc/edi-sync/keys/id_ed25519_sftp1
+key_file = /etc/edi-sync/keys/id_rsa_babelway
 host_fingerprint = sha256:REMPLACER_PAR_L_EMPREINTE_DU_SERVEUR
 
-[sftp2]
-host = sftp2.exemple.com
+[sftp_keane]
+host = sftp-keane.exemple.com
 port = 22
 user = edi
-key_file = /etc/edi-sync/keys/id_ed25519_sftp2
+key_file = /etc/edi-sync/keys/id_rsa_keane
 host_fingerprint = sha256:REMPLACER_PAR_L_EMPREINTE_DU_SERVEUR
 
 [flow_a]
-source = sftp1
+source = sftp_babelway
 source_dir = /out
-dest = sftp2
+dest = sftp_keane
 dest_dir = /in
 archive_dir = /archive/flow_a
 
 [flow_b]
-source = sftp2
+source = sftp_keane
 source_dir = /out
-dest = sftp1
+dest = sftp_babelway
 dest_dir = /in
 archive_dir = /archive/flow_b
 
@@ -38,9 +38,5 @@ enabled = true
 bind = 127.0.0.1
 port = 8443
 # tls_cert / tls_key : laisser vide pour un certificat auto-signe genere dans state_dir/certs/
-# tls_cert = /etc/edi-sync/certs/monitoring.crt
-# tls_key = /etc/edi-sync/certs/monitoring.key
-# Basic Auth optionnelle : auth_user + sha256 du mot de passe
-# (ex: echo -n 'motdepasse' | sha256sum)
-# auth_user = admin
-# auth_password_sha256 =
+# auth_user / auth_password_sha256 : laisser vide pour desactiver l'authentification Basic
+# auth_password_sha256 = sha256 du mot de passe (ex: echo -n 'motdepasse' | sha256sum)
