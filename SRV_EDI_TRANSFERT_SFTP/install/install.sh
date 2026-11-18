@@ -3,12 +3,14 @@ set -euo pipefail
 
 MODE=system
 [[ "${1:-}" == "--user" ]] && MODE=user
+# usage : install.sh            -> mode system (root), prefix /opt/edi-sync
+#         install.sh --user [PREFIX] -> mode user, prefix par defaut ~/edi-sync (ex: /opt/EDI/edi-sync)
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ "$MODE" == "system" ]]; then
   if [[ "$(id -u)" -ne 0 ]]; then
-    echo "Mode system : execute en root (sudo). Sans root, utiliser : install.sh --user" >&2
+    echo "Mode system : execute en root (sudo). Sans root, utiliser : install.sh --user [PREFIX]" >&2
     exit 1
   fi
   APP_DIR=/opt/edi-sync
@@ -31,15 +33,15 @@ if [[ "$MODE" == "system" ]]; then
   install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0700 "${CONF_DIR}/keys"
   install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0750 "${LOG_DIR}"
 else
-  APP_DIR="${HOME}/edi-sync"
-  CONF_DIR="${HOME}/edi-sync"
-  STATE_DIR="${HOME}/edi-sync/state"
-  LOG_DIR="${HOME}/edi-sync/log"
+  APP_DIR="${2:-${HOME}/edi-sync}"
+  CONF_DIR="${APP_DIR}"
+  STATE_DIR="${APP_DIR}/state"
+  LOG_DIR="${APP_DIR}/log"
   UNIT_DIR="${HOME}/.config/systemd/user"
   UNIT_SRC="${SRC_DIR}/systemd/edi-sync-user.service"
   SYSTEMCTL="systemctl --user"
   OWNER_ARGS=()
-  CONF_OWNER="${USER}"
+  CONF_OWNER="$(id -un)"
   echo "==> Mode user : installation dans ${APP_DIR} (aucun droit root requis)"
   install -d -m 0750 "${APP_DIR}" "${STATE_DIR}" "${STATE_DIR}/staging" "${LOG_DIR}" "${UNIT_DIR}"
 fi
@@ -64,8 +66,15 @@ chown "${CONF_OWNER}" "${CONF_DIR}/config.ini" 2>/dev/null || true
 chmod 0600 "${CONF_DIR}/config.ini"
 
 echo "==> Unite systemd dans ${UNIT_DIR}"
-install -m 0644 "${UNIT_SRC}" "${UNIT_DIR}/edi-sync.service"
-${SYSTEMCTL} daemon-reload
+if [[ "$MODE" == "user" ]]; then
+  sed "s|__APP_DIR__|${APP_DIR}|g" "${UNIT_SRC}" > "${UNIT_DIR}/edi-sync.service"
+  chmod 0644 "${UNIT_DIR}/edi-sync.service"
+else
+  install -m 0644 "${UNIT_SRC}" "${UNIT_DIR}/edi-sync.service"
+fi
+if ! ${SYSTEMCTL} daemon-reload 2>/dev/null; then
+  echo "WARN: '${SYSTEMCTL} daemon-reload' a echoue (systemd ${MODE} non actif ici ?) - l'unite est ecrite, charge-la plus tard" >&2
+fi
 
 echo
 echo "Installation terminee (mode ${MODE}). Etapes restantes :"
@@ -74,9 +83,9 @@ if [[ "$MODE" == "system" ]]; then
   echo "     sudo install -o ${SVC_USER} -g ${SVC_USER} -m 600 <cle_privee> ${CONF_DIR}/keys/id_rsa_xxx"
 else
   echo "  1. Dans ${CONF_DIR}/config.ini, pointer key_file directement vers tes cles existantes,"
-  echo "     ex : key_file = ${HOME}/.ssh/id_rsa_babelway_edi  (aucune copie necessaire, tu es ${USER})"
+  echo "     ex : key_file = ${HOME}/.ssh/id_rsa_babelway_edi  (aucune copie necessaire, tu es $(id -un))"
   echo "     Pour que le service tourne aussi sans session ouverte, demander a l'admin root :"
-  echo "     loginctl enable-linger ${USER}"
+  echo "     loginctl enable-linger $(id -un)"
 fi
 echo "  2. Editer ${CONF_DIR}/config.ini (hosts, users, empreintes sha256 des serveurs)"
 echo "  3. Verifier : ${APP_DIR}/venv/bin/python ${APP_DIR}/edi_sync.py --config ${CONF_DIR}/config.ini --check"

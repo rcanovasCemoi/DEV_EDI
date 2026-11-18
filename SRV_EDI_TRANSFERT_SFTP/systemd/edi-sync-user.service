@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=%h/edi-sync/venv/bin/python %h/edi-sync/edi_sync.py --config %h/edi-sync/config.ini
+ExecStart=__APP_DIR__/venv/bin/python __APP_DIR__/edi_sync.py --config __APP_DIR__/config.ini
 Restart=always
 RestartSec=10
 Environment=PYTHONUNBUFFERED=1
