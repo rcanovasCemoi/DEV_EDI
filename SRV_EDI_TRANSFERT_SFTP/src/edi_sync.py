@@ -244,6 +244,14 @@ class TransferQueue:
                 (status, attempts, next_attempt, last_error, now(), row_id))
             self._conn.commit()
 
+    def reset_failed(self) -> int:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE transfers SET status=?, attempts=0, next_attempt=0, last_error=NULL, updated_at=? WHERE status=?",
+                (PENDING, now(), FAILED))
+            self._conn.commit()
+            return cur.rowcount
+
     def counts(self, flow) -> dict:
         with self._lock:
             rows = self._conn.execute(
@@ -845,6 +853,9 @@ def main(argv=None) -> int:
     state = Path(cfg.state_dir)
     (state / "staging").mkdir(parents=True, exist_ok=True)
     queue = TransferQueue(state / "queue.db")
+    reset = queue.reset_failed()
+    if reset:
+        log.info("transferts failed remis en pending au demarrage", extra={"event": "reset_failed", "count": reset})
     started_at = time.time()
 
     stop_event = threading.Event()
