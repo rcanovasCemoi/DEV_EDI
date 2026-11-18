@@ -84,6 +84,21 @@ class TestLoadConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             es.load_config(self._write(bad))
 
+    def test_sections_with_underscore_names(self):
+        ini = (VALID_INI
+               .replace("[sftp1]", "[sftp_babelway]")
+               .replace("[sftp2]", "[sftp_keane]")
+               .replace("source = sftp1", "source = sftp_babelway")
+               .replace("dest = sftp2", "dest = sftp_keane")
+               .replace("source = sftp2", "source = sftp_keane")
+               .replace("dest = sftp1", "dest = sftp_babelway"))
+        cfg = es.load_config(self._write(ini))
+        self.assertEqual(set(cfg.sftps), {"sftp_babelway", "sftp_keane"})
+        self.assertEqual(cfg.flows[0].source, "sftp_babelway")
+        self.assertEqual(cfg.flows[0].dest, "sftp_keane")
+        self.assertEqual(cfg.flows[1].source, "sftp_keane")
+        self.assertEqual(cfg.flows[1].dest, "sftp_babelway")
+
 
 class TestTransferQueue(unittest.TestCase):
     def setUp(self):
