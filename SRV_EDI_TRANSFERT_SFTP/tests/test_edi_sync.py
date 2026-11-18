@@ -41,7 +41,6 @@ source = sftp_babelway
 source_dir = /out
 dest = sftp_keane
 dest_dir = /in
-archive_dir = /archive/flow_babelway_to_keane
 
 [flow_keane_to_babelway]
 source = sftp_keane
@@ -70,7 +69,6 @@ class TestLoadConfig(unittest.TestCase):
         self.assertEqual(cfg.flows[0].source, "sftp_babelway")
         self.assertEqual(cfg.flows[0].dest, "sftp_keane")
         self.assertEqual(cfg.flows[1].dest, "sftp_babelway")
-        self.assertEqual(cfg.flows[1].archive_dir, "/archive/flow_keane_to_babelway")
 
     def test_missing_file(self):
         with self.assertRaises(FileNotFoundError):
@@ -228,7 +226,7 @@ class TestFlowStatus(unittest.TestCase):
         self.queue = es.TransferQueue(Path(self.state_dir) / "queue.db")
         self.addCleanup(self.queue.close)
         self.flow = es.FlowConfig(name="flow_a", source="sftp1", source_dir="/out",
-                                  dest="sftp2", dest_dir="/in", archive_dir="/archive/flow_a")
+                                  dest="sftp2", dest_dir="/in")
 
     def _heartbeat(self, dt):
         (Path(self.state_dir) / "heartbeat_flow_a").write_text(dt.isoformat())
@@ -266,7 +264,7 @@ class TestMonitoringServer(unittest.TestCase):
         self.queue = es.TransferQueue(Path(self.state_dir) / "queue.db")
         self.addCleanup(self.queue.close)
         self.flow = es.FlowConfig(name="flow_a", source="sftp1", source_dir="/out",
-                                  dest="sftp2", dest_dir="/in", archive_dir="/archive/flow_a")
+                                  dest="sftp2", dest_dir="/in")
         self.events = es.EventRing()
         mcfg = es.MonitoringConfig(enabled=True, bind="127.0.0.1", port=0)
         self.mon = es.MonitoringServer(mcfg, self.queue, [self.flow], self.events,
@@ -419,6 +417,64 @@ class TestLogFile(unittest.TestCase):
             f.write(VALID_INI)
         self.addCleanup(os.unlink, path)
         self.assertEqual(es.load_config(path).log_file, "")
+
+
+class TestArchiveLocal(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cfg = es.Config(state_dir=self.tmp.name,
+                             local_archive_dir=os.path.join(self.tmp.name, "ARCHIVE"))
+        self.flow = es.FlowConfig(name="flow_babelway_to_keane", source="sftp_babelway",
+                                  source_dir="/out", dest="sftp_keane", dest_dir="/in")
+        import logging
+        self.worker = es.FlowWorker(self.flow, None, None, None, self.cfg,
+                                    logging.getLogger("t"), __import__("threading").Event())
+
+    def test_archive_local_moves_file(self):
+        src = Path(self.tmp.name) / "f.edi"
+        src.write_text("contenu")
+        self.worker._archive_local(src, "f.edi")
+        dest = Path(self.cfg.local_archive_dir) / self.flow.name / "f.edi"
+        self.assertTrue(dest.exists())
+        self.assertEqual(dest.read_text(), "contenu")
+        self.assertFalse(src.exists())
+
+    def test_archive_local_same_size_is_idempotent(self):
+        src = Path(self.tmp.name) / "f.edi"
+        src.write_text("contenu")
+        self.worker._archive_local(src, "f.edi")
+        src.write_text("contenu")
+        self.worker._archive_local(src, "f.edi")
+        dest_dir = Path(self.cfg.local_archive_dir) / self.flow.name
+        self.assertEqual(len(list(dest_dir.iterdir())), 1)
+
+    def test_no_local_archive_dir_is_noop(self):
+        self.cfg.local_archive_dir = ""
+        src = Path(self.tmp.name) / "f.edi"
+        src.write_text("x")
+        self.worker._archive_local(src, "f.edi")
+        self.assertTrue(src.exists())
+
+
+class TestPurgeLocal(unittest.TestCase):
+    def test_purge_removes_old_files_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = Path(d) / "ARCHIVE" / "flow_x"
+            base.mkdir(parents=True)
+            old = base / "old.edi"
+            recent = base / "recent.edi"
+            old.write_text("old")
+            recent.write_text("recent")
+            old_ts = time.time() - 10 * 86400
+            os.utime(old, (old_ts, old_ts))
+            cfg = es.Config(local_archive_dir=str(Path(d) / "ARCHIVE"), archive_retention_days=7)
+            flow = es.FlowConfig(name="flow_x", source="s", source_dir="/out", dest="d", dest_dir="/in")
+            import logging
+            purge = es.PurgeWorker([flow], cfg, logging.getLogger("t"), __import__("threading").Event())
+            purge.purge_all()
+            self.assertFalse(old.exists())
+            self.assertTrue(recent.exists())
 
 
 if __name__ == "__main__":

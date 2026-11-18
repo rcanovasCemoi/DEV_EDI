@@ -5,6 +5,7 @@ max_retries = 5
 archive_retention_days = 7
 state_dir = /var/lib/edi-sync
 # log_file = /var/log/edi-sync/daemon.log   # optionnel : copie des logs JSON dans un fichier (utile sans acces au journal)
+# local_archive_dir = /opt/EDI/ARCHIVE       # archive locale des fichiers transferes, dans <local_archive_dir>/<flow>/ ; vide = pas d'archive
 
 [sftp_babelway]
 host = sftp-babelway.exemple.com
@@ -27,14 +28,12 @@ source = sftp_babelway
 source_dir = /out
 dest = sftp_keane
 dest_dir = /in
-archive_dir = /archive/flow_babelway_to_keane
 
 [flow_keane_to_babelway]
 source = sftp_keane
 source_dir = /out
 dest = sftp_babelway
 dest_dir = /in
-archive_dir = /archive/flow_keane_to_babelway
 
 [monitoring]
 enabled = true

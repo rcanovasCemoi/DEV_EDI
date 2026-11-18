@@ -33,8 +33,8 @@ Le daemon tourne sur un serveur Linux intermédiaire et gère **deux flux indép
 - **Fichier stable** : taille inchangée entre 2 scans consécutifs ; les suffixes `.tmp`/`.part` et fichiers cachés sont ignorés.
 - **Anti-doublon** : clé unique `(flow, nom, taille, mtime)` dans la queue SQLite.
 - **Transfert atomique** côté destination : upload en `.<nom>.tmp` puis rename, jamais de fichier partiel visible.
-- **Après succès** : le fichier source est déplacé de `OUT` vers `archive/<flow>/` (pas de suppression immédiate), état `done`.
-- **Purge** : les archives sont supprimées automatiquement après N jours (7 par défaut).
+- **Après succès** : le fichier est archivé **localement** dans `local_archive_dir/<flow>/` (ex. `/opt/EDI/ARCHIVE/flow_babelway_to_keane/`), puis **supprimé du SFTP source**, état `done`.
+- **Purge** : les archives locales sont supprimées automatiquement après N jours (`archive_retention_days`, 7 par défaut).
 - **Conflit de nom** côté `IN` : même nom + même taille = déjà livré (ignoré) ; taille différente = upload sous `<nom>.dup-<timestamp>`.
 - **Échec** : 5 tentatives avec backoff (30 s → 1 min → 5 min → 15 min → 1 h), puis `failed` + alerte.
 
@@ -80,6 +80,7 @@ stability_scans = 2
 max_retries = 5
 archive_retention_days = 7
 state_dir = /var/lib/edi-sync
+local_archive_dir = /opt/EDI/ARCHIVE   # archive locale : <local_archive_dir>/<flow>/ ; vide = pas d'archive
 
 [sftp_babelway]
 host = sftp-babelway.exemple.com
@@ -100,14 +101,12 @@ source = sftp_babelway
 source_dir = /out
 dest = sftp_keane
 dest_dir = /in
-archive_dir = /archive/flow_babelway_to_keane
 
 [flow_keane_to_babelway]
 source = sftp_keane
 source_dir = /out
 dest = sftp_babelway
 dest_dir = /in
-archive_dir = /archive/flow_keane_to_babelway
 ```
 
 ## Installation (serveur Linux cible)

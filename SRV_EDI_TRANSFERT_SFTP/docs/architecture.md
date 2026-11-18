@@ -36,8 +36,8 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 - **Stabilité** : un fichier est traité quand sa taille est inchangée sur `stability_scans` scans consécutifs ; `.tmp`, `.part` et fichiers cachés ignorés.
 - **Anti-doublon** : contrainte `UNIQUE(flow, filename, size, src_mtime)` en SQLite.
 - **Atomicité** : upload côté destination en `.<nom>.tmp` puis `rename` ; vérification des tailles à chaque étape.
-- **Post-traitement** : `rename` du fichier source vers `archive_dir` (jamais de suppression immédiate), purge automatique après rétention.
-- **Conflit de nom** côté `IN` : même taille = déjà livré (on archive quand même) ; taille différente = suffixe `.dup-<epoch>`.
+- **Post-traitement** : après upload OK, le fichier est archivé **localement** dans `local_archive_dir/<flow>/` (ex. `/opt/EDI/ARCHIVE/flow_babelway_to_keane/`), puis **supprimé du SFTP source** ; purge automatique des archives locales après `archive_retention_days`.
+- **Conflit de nom** côté `IN` : même taille = déjà livré (on archive quand même localement et on supprime la source) ; taille différente = suffixe `.dup-<epoch>`.
 - **Retry** : backoff 30 s → 1 min → 5 min → 15 min → 1 h, puis `failed` après `max_retries` tentatives. Reprise automatique des `pending` au redémarrage.
 
 ## Monitoring HTTPS
