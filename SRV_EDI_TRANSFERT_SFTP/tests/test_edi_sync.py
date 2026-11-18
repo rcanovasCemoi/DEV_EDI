@@ -181,6 +181,12 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(es.normalize_fingerprint("AbC"), "sha256:AbC")
         self.assertEqual(es.normalize_fingerprint("sha256:"), "sha256:")
 
+    def test_parse_fingerprints_list(self):
+        s = es.parse_fingerprints("SHA256:AbC==, sha256:DeF; sha256:GhI")
+        self.assertEqual(s, {"sha256:AbC", "sha256:DeF", "sha256:GhI"})
+        self.assertEqual(es.parse_fingerprints(""), set())
+        self.assertEqual(es.parse_fingerprints("sha256:Seul"), {"sha256:Seul"})
+
 
 class TestMonitoringConfig(unittest.TestCase):
     def _write(self, text):

@@ -10,6 +10,8 @@ host = sftp-babelway.exemple.com
 port = 22
 user = edi
 key_file = /etc/edi-sync/keys/id_rsa_babelway
+# une ou plusieurs empreintes sha256 du serveur, separees par des virgules
+# (recuperees via: ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -)
 host_fingerprint = sha256:REMPLACER_PAR_L_EMPREINTE_DU_SERVEUR
 
 [sftp_keane]
