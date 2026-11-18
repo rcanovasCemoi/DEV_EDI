@@ -21,7 +21,8 @@ fi
 echo "==> Creation des repertoires"
 install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0750 "${STATE_DIR}" "${STATE_DIR}/staging"
 install -d -o root -g root -m 0755 "${APP_DIR}"
-install -d -o root -g root -m 0700 "${CONF_DIR}" "${CONF_DIR}/keys"
+install -d -o root -g root -m 0755 "${CONF_DIR}"
+install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0700 "${CONF_DIR}/keys"
 install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0750 "${LOG_DIR}"
 
 echo "==> Deploiement du code dans ${APP_DIR}"
@@ -35,11 +36,12 @@ python3 -m venv "${APP_DIR}/venv"
 
 echo "==> Installation de la configuration"
 if [[ ! -f "${CONF_DIR}/config.ini" ]]; then
-  install -m 0600 "${SRC_DIR}/config/config.ini.example" "${CONF_DIR}/config.ini"
+  install -o "${SVC_USER}" -g "${SVC_USER}" -m 0600 "${SRC_DIR}/config/config.ini.example" "${CONF_DIR}/config.ini"
   echo "   config copiée depuis config.ini.example -> ${CONF_DIR}/config.ini (a editer)"
 else
   echo "   ${CONF_DIR}/config.ini existe deja, conservee"
 fi
+chown "${SVC_USER}:${SVC_USER}" "${CONF_DIR}/config.ini"
 chmod 0600 "${CONF_DIR}/config.ini"
 
 echo "==> Installation de l'unite systemd"
@@ -48,7 +50,9 @@ systemctl daemon-reload
 
 echo
 echo "Installation terminee. Etapes restantes :"
-echo "  1. Deposer les cles SSH dans ${CONF_DIR}/keys/ (chmod 600)"
+echo "  1. Deposer les cles SSH dans ${CONF_DIR}/keys/, lisibles par le service uniquement :"
+echo "     sudo install -o ${SVC_USER} -g ${SVC_USER} -m 600 <cle_privee> ${CONF_DIR}/keys/id_ed25519_sftp1"
+echo "     sudo install -o ${SVC_USER} -g ${SVC_USER} -m 600 <cle_privee> ${CONF_DIR}/keys/id_ed25519_sftp2"
 echo "  2. Editer ${CONF_DIR}/config.ini (hosts, users, empreintes sha256 des serveurs)"
 echo "  3. Verifier la config : ${APP_DIR}/venv/bin/python ${APP_DIR}/edi_sync.py --config ${CONF_DIR}/config.ini --check"
 echo "  4. Demarrer le service : systemctl enable --now edi-sync"
