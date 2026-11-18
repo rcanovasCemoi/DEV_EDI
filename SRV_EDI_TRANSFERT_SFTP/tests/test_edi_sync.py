@@ -123,6 +123,16 @@ class TestTransferQueue(unittest.TestCase):
         self.queue.mark(row["id"], es.PENDING, attempts=5, next_attempt=0)
         self.assertIsNone(self.queue.next_pending("flow_a", max_retries=5))
 
+    def test_reset_failed(self):
+        self.queue.enqueue("flow_a", "f.edi", 1, 1)
+        row = self.queue.next_pending("flow_a", max_retries=5)
+        self.queue.mark(row["id"], es.FAILED, attempts=5)
+        self.assertIsNone(self.queue.next_pending("flow_a", max_retries=5))
+        self.assertEqual(self.queue.reset_failed(), 1)
+        row2 = self.queue.next_pending("flow_a", max_retries=5)
+        self.assertIsNotNone(row2)
+        self.assertEqual(row2["attempts"], 0)
+
     def test_mark_done_and_counts(self):
         self.queue.enqueue("flow_a", "a.edi", 1, 1)
         self.queue.enqueue("flow_a", "b.edi", 2, 2)
@@ -475,6 +485,24 @@ class TestPurgeLocal(unittest.TestCase):
             purge.purge_all()
             self.assertFalse(old.exists())
             self.assertTrue(recent.exists())
+
+
+class TestJsonFormatter(unittest.TestCase):
+    def test_traceback_in_json(self):
+        import logging as lg
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            rec = lg.LogRecord("t", lg.ERROR, __file__, 1, "msg", None, sys.exc_info())
+        out = es.JsonFormatter().format(rec)
+        data = json.loads(out)
+        self.assertIn("traceback", data)
+        self.assertIn("ValueError: boom", data["traceback"])
+
+    def test_no_traceback_without_exc(self):
+        import logging as lg
+        rec = lg.LogRecord("t", lg.INFO, __file__, 1, "msg", None, None)
+        self.assertNotIn("traceback", es.JsonFormatter().format(rec))
 
 
 if __name__ == "__main__":

@@ -244,6 +244,14 @@ class TransferQueue:
                 (status, attempts, next_attempt, last_error, now(), row_id))
             self._conn.commit()
 
+    def reset_failed(self) -> int:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE transfers SET status=?, attempts=0, next_attempt=0, last_error=NULL, updated_at=? WHERE status=?",
+                (PENDING, now(), FAILED))
+            self._conn.commit()
+            return cur.rowcount
+
     def counts(self, flow) -> dict:
         with self._lock:
             rows = self._conn.execute(
@@ -800,9 +808,11 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "msg": record.getMessage(),
         }
-        for key in ("flow", "event", "file", "size", "dest", "attempts", "delay_sec", "error", "signal"):
+        for key in ("flow", "event", "file", "size", "dest", "attempts", "delay_sec", "error", "signal", "count"):
             if key in record.__dict__:
                 payload[key] = record.__dict__[key]
+        if record.exc_info:
+            payload["traceback"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False)
 
 
@@ -845,6 +855,9 @@ def main(argv=None) -> int:
     state = Path(cfg.state_dir)
     (state / "staging").mkdir(parents=True, exist_ok=True)
     queue = TransferQueue(state / "queue.db")
+    reset = queue.reset_failed()
+    if reset:
+        log.info("transferts failed remis en pending au demarrage", extra={"event": "reset_failed", "count": reset})
     started_at = time.time()
 
     stop_event = threading.Event()
