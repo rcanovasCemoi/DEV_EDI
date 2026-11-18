@@ -1,0 +1,21 @@
+[Unit]
+Description=EDI SFTP realtime sync (bidirectionnel sftp1 <-> sftp2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edisync
+Group=edisync
+ExecStart=/opt/edi-sync/venv/bin/python /opt/edi-sync/edi_sync.py --config /etc/edi-sync/config.ini
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/edi-sync /var/log/edi-sync
+
+[Install]
+WantedBy=multi-user.target

@@ -12,3 +12,4 @@ Ce dépôt regroupe plusieurs projets EDI indépendants, chacun dans son propre 
 Chaque projet a sa propre suite de tests déclenchée par GitHub Actions uniquement lorsque ses fichiers changent (filtre `paths`).
 
 - [`tests.yml`](.github/workflows/tests.yml) : tests de non-régression EDIFACT_BABELWAY (Node.js, 74 assertions)
+- [`tests-srv-edi-transfert-sftp.yml`](.github/workflows/tests-srv-edi-transfert-sftp.yml) : tests unitaires du daemon SRV_EDI_TRANSFERT_SFTP (Python, unittest)
