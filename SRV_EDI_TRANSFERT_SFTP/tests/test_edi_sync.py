@@ -24,29 +24,29 @@ max_retries = 3
 archive_retention_days = 7
 state_dir = /tmp/edi-state
 
-[sftp1]
-host = sftp1.example.com
+[sftp_babelway]
+host = sftp-babelway.example.com
 port = 22
 user = edi
 key_file = /etc/edi-sync/keys/k1
 host_fingerprint = sha256:AAAA
 
-[sftp2]
-host = sftp2.example.com
+[sftp_keane]
+host = sftp-keane.example.com
 user = edi
 key_file = /etc/edi-sync/keys/k2
 
-[flow_a]
-source = sftp1
+[flow_babelway_to_keane]
+source = sftp_babelway
 source_dir = /out
-dest = sftp2
+dest = sftp_keane
 dest_dir = /in
-archive_dir = /archive/flow_a
+archive_dir = /archive/flow_babelway_to_keane
 
-[flow_b]
-source = sftp2
+[flow_keane_to_babelway]
+source = sftp_keane
 source_dir = /out
-dest = sftp1
+dest = sftp_babelway
 dest_dir = /in
 """
 
@@ -63,37 +63,34 @@ class TestLoadConfig(unittest.TestCase):
         cfg = es.load_config(self._write(VALID_INI))
         self.assertEqual(cfg.scan_interval_sec, 5)
         self.assertEqual(cfg.max_retries, 3)
-        self.assertEqual(set(cfg.sftps), {"sftp1", "sftp2"})
-        self.assertEqual(cfg.sftps["sftp2"].port, 22)
-        self.assertEqual([f.name for f in cfg.flows], ["flow_a", "flow_b"])
-        self.assertEqual(cfg.flows[0].source, "sftp1")
-        self.assertEqual(cfg.flows[1].dest, "sftp1")
-        self.assertEqual(cfg.flows[1].archive_dir, "/archive/flow_b")
+        self.assertEqual(set(cfg.sftps), {"sftp_babelway", "sftp_keane"})
+        self.assertEqual(cfg.sftps["sftp_keane"].port, 22)
+        self.assertEqual([f.name for f in cfg.flows],
+                         ["flow_babelway_to_keane", "flow_keane_to_babelway"])
+        self.assertEqual(cfg.flows[0].source, "sftp_babelway")
+        self.assertEqual(cfg.flows[0].dest, "sftp_keane")
+        self.assertEqual(cfg.flows[1].dest, "sftp_babelway")
+        self.assertEqual(cfg.flows[1].archive_dir, "/archive/flow_keane_to_babelway")
 
     def test_missing_file(self):
         with self.assertRaises(FileNotFoundError):
             es.load_config("/nonexistent/config.ini")
 
     def test_unknown_source_ref(self):
-        bad = VALID_INI.replace("source = sftp1", "source = sftp9")
+        bad = VALID_INI.replace("source = sftp_babelway", "source = sftp9")
         with self.assertRaises(ValueError):
             es.load_config(self._write(bad))
 
     def test_no_flow(self):
-        bad = VALID_INI.split("[flow_a]")[0]
+        bad = VALID_INI.split("[flow_babelway_to_keane]")[0]
         with self.assertRaises(ValueError):
             es.load_config(self._write(bad))
 
-    def test_sections_with_underscore_names(self):
-        ini = (VALID_INI
-               .replace("[sftp1]", "[sftp_babelway]")
-               .replace("[sftp2]", "[sftp_keane]")
-               .replace("source = sftp1", "source = sftp_babelway")
-               .replace("dest = sftp2", "dest = sftp_keane")
-               .replace("source = sftp2", "source = sftp_keane")
-               .replace("dest = sftp1", "dest = sftp_babelway"))
-        cfg = es.load_config(self._write(ini))
+    def test_long_underscore_names(self):
+        cfg = es.load_config(self._write(VALID_INI))
         self.assertEqual(set(cfg.sftps), {"sftp_babelway", "sftp_keane"})
+        self.assertEqual([f.name for f in cfg.flows],
+                         ["flow_babelway_to_keane", "flow_keane_to_babelway"])
         self.assertEqual(cfg.flows[0].source, "sftp_babelway")
         self.assertEqual(cfg.flows[0].dest, "sftp_keane")
         self.assertEqual(cfg.flows[1].source, "sftp_keane")

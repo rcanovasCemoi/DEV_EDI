@@ -81,33 +81,33 @@ max_retries = 5
 archive_retention_days = 7
 state_dir = /var/lib/edi-sync
 
-[sftp1]
-host = sftp1.exemple.com
+[sftp_babelway]
+host = sftp-babelway.exemple.com
 port = 22
 user = edi
-key_file = /etc/edi-sync/keys/id_ed25519_sftp1
+key_file = /etc/edi-sync/keys/id_rsa_babelway
 host_fingerprint = sha256:xxxxx
 
-[sftp2]
-host = sftp2.exemple.com
+[sftp_keane]
+host = sftp-keane.exemple.com
 port = 22
 user = edi
-key_file = /etc/edi-sync/keys/id_ed25519_sftp2
+key_file = /etc/edi-sync/keys/id_rsa_keane
 host_fingerprint = sha256:yyyyy
 
-[flow_a]                       # sftp1 -> sftp2
-source = sftp1
+[flow_babelway_to_keane]
+source = sftp_babelway
 source_dir = /out
-dest = sftp2
+dest = sftp_keane
 dest_dir = /in
-archive_dir = /archive/flow_a
+archive_dir = /archive/flow_babelway_to_keane
 
-[flow_b]                       # sftp2 -> sftp1
-source = sftp2
+[flow_keane_to_babelway]
+source = sftp_keane
 source_dir = /out
-dest = sftp1
+dest = sftp_babelway
 dest_dir = /in
-archive_dir = /archive/flow_b
+archive_dir = /archive/flow_keane_to_babelway
 ```
 
 ## Installation (serveur Linux cible)
@@ -142,7 +142,7 @@ systemctl status edi-sync
 journalctl -u edi-sync -f
 ```
 
-- Heartbeat par flow : `/var/lib/edi-sync/heartbeat_flow_a`, `heartbeat_flow_b`
+- Heartbeat par flow : `/var/lib/edi-sync/heartbeat_flow_babelway_to_keane`, `heartbeat_flow_keane_to_babelway` (nommés d'après les sections `[flow_*]`)
 - Métriques `pending/done/failed` par flow dans la base SQLite
 - Alerte si heartbeat absent ou si des transferts sont en `failed`
 

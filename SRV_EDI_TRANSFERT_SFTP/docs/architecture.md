@@ -5,11 +5,11 @@
 Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-sync`, qui fait la navette **bidirectionnelle** de fichiers EDI entre deux serveurs SFTP :
 
 ```
-┌─────────┐     flow_a : OUT → IN      ┌─────────┐
+┌─────────┐     flow_babelway_to_keane  ┌─────────┐
 │ SFTP 1  │ ─────────────────────────► │ SFTP 2  │
 │  /out   │   sftp1/out ──► sftp2/in   │  /in    │
 │  /in    │ ◄───────────────────────── │  /out   │
-│ /archive│     flow_b : OUT → IN      │ /archive│
+│ /archive│     flow_keane_to_babelway  │ /archive│
 └─────────┘   sftp2/out ──► sftp1/in   └─────────┘
             (daemon edi-sync au milieu)
 ```

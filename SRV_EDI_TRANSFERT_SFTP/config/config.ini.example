@@ -19,19 +19,19 @@ user = edi
 key_file = /etc/edi-sync/keys/id_rsa_keane
 host_fingerprint = sha256:REMPLACER_PAR_L_EMPREINTE_DU_SERVEUR
 
-[flow_a]
+[flow_babelway_to_keane]
 source = sftp_babelway
 source_dir = /out
 dest = sftp_keane
 dest_dir = /in
-archive_dir = /archive/flow_a
+archive_dir = /archive/flow_babelway_to_keane
 
-[flow_b]
+[flow_keane_to_babelway]
 source = sftp_keane
 source_dir = /out
 dest = sftp_babelway
 dest_dir = /in
-archive_dir = /archive/flow_b
+archive_dir = /archive/flow_keane_to_babelway
 
 [monitoring]
 enabled = true
