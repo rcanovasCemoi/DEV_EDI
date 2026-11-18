@@ -394,7 +394,10 @@ class SftpEndpoint:
         return self._call(lambda sftp, r, l: sftp.get(r, l), remote, local)
 
     def put(self, local, remote):
-        return self._call(lambda sftp, l, r: sftp.put(l, r), local, remote)
+        def fn(sftp, l, r):
+            with open(l, "rb") as fsrc, sftp.open(r, "wb") as fdst:
+                shutil.copyfileobj(fsrc, fdst)
+        return self._call(fn, local, remote)
 
     def rename(self, old, new):
         return self._call(lambda sftp, o, n: sftp.rename(o, n), old, new)
