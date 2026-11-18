@@ -808,9 +808,11 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "msg": record.getMessage(),
         }
-        for key in ("flow", "event", "file", "size", "dest", "attempts", "delay_sec", "error", "signal"):
+        for key in ("flow", "event", "file", "size", "dest", "attempts", "delay_sec", "error", "signal", "count"):
             if key in record.__dict__:
                 payload[key] = record.__dict__[key]
+        if record.exc_info:
+            payload["traceback"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False)
 
 

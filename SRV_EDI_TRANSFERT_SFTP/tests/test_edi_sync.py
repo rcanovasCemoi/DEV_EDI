@@ -487,5 +487,23 @@ class TestPurgeLocal(unittest.TestCase):
             self.assertTrue(recent.exists())
 
 
+class TestJsonFormatter(unittest.TestCase):
+    def test_traceback_in_json(self):
+        import logging as lg
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            rec = lg.LogRecord("t", lg.ERROR, __file__, 1, "msg", None, sys.exc_info())
+        out = es.JsonFormatter().format(rec)
+        data = json.loads(out)
+        self.assertIn("traceback", data)
+        self.assertIn("ValueError: boom", data["traceback"])
+
+    def test_no_traceback_without_exc(self):
+        import logging as lg
+        rec = lg.LogRecord("t", lg.INFO, __file__, 1, "msg", None, None)
+        self.assertNotIn("traceback", es.JsonFormatter().format(rec))
+
+
 if __name__ == "__main__":
     unittest.main()
