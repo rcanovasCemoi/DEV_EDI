@@ -11,6 +11,7 @@ import logging
 import os
 import posixpath
 import re
+import shutil
 import signal
 import sqlite3
 import ssl
@@ -119,7 +120,6 @@ class FlowConfig:
     source_dir: str
     dest: str
     dest_dir: str
-    archive_dir: str
 
 
 @dataclass
@@ -141,6 +141,7 @@ class Config:
     archive_retention_days: int = 7
     state_dir: str = "/var/lib/edi-sync"
     log_file: str = ""
+    local_archive_dir: str = ""
     sftps: dict = field(default_factory=dict)
     flows: list = field(default_factory=list)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
@@ -163,6 +164,7 @@ def load_config(path: str) -> Config:
         archive_retention_days=getg("archive_retention_days", 7, int),
         state_dir=getg("state_dir", "/var/lib/edi-sync"),
         log_file=getg("log_file", ""),
+        local_archive_dir=getg("local_archive_dir", ""),
     )
 
     for section in parser.sections():
@@ -192,7 +194,6 @@ def load_config(path: str) -> Config:
                 source_dir=parser.get(section, "source_dir"),
                 dest=dst,
                 dest_dir=parser.get(section, "dest_dir"),
-                archive_dir=parser.get(section, "archive_dir", fallback=f"/archive/{section}"),
             ))
     if not cfg.flows:
         raise ValueError("aucune section [flow*] dans la config")
@@ -493,9 +494,10 @@ class FlowWorker(threading.Thread):
                     raise IOError(f"taille upload {tmp_size} != taille local {local_size}")
                 self.dst.rename(tmp_remote, final_remote)
             else:
-                self.log.info("fichier deja livre (meme taille), on archive la source", extra={
+                self.log.info("fichier deja livre (meme taille), on archive localement et on supprime la source", extra={
                     "flow": flow, "event": "already_delivered", "file": fname})
-            self._archive_source(src_path, fname)
+            self._archive_local(local, fname)
+            self.src.remove(src_path)
             self.queue.mark(row["id"], DONE, last_error=None)
             self.log.info("transfert OK", extra={
                 "flow": flow, "event": "transferred", "file": fname,
@@ -520,12 +522,21 @@ class FlowWorker(threading.Thread):
             except FileNotFoundError:
                 pass
 
-    def _archive_source(self, src_path, fname):
-        self.src.mkdirs(self.flow.archive_dir)
-        dest = posixpath.join(self.flow.archive_dir, fname)
-        if self.src.exists(dest):
-            dest = posixpath.join(self.flow.archive_dir, f"{fname}.dup-{now()}")
-        self.src.rename(src_path, dest)
+    def _archive_local(self, local: Path, fname: str):
+        base = self.cfg.local_archive_dir
+        if not base:
+            return
+        dest_dir = Path(base) / self.flow.name
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / fname
+        if dest.exists():
+            if dest.stat().st_size == local.stat().st_size:
+                return
+            dest = dest_dir / f"{fname}.dup-{now()}"
+        try:
+            os.rename(local, dest)
+        except OSError:
+            shutil.copy2(local, dest)
 
     def _heartbeat(self):
         try:
@@ -535,10 +546,9 @@ class FlowWorker(threading.Thread):
 
 
 class PurgeWorker(threading.Thread):
-    def __init__(self, flows, endpoints, cfg: Config, log, stop_event, interval_sec=3600):
+    def __init__(self, flows, cfg: Config, log, stop_event, interval_sec=3600):
         super().__init__(name="purge", daemon=True)
         self.flows = flows
-        self.endpoints = endpoints
         self.cfg = cfg
         self.log = log
         self.stop_event = stop_event
@@ -553,18 +563,22 @@ class PurgeWorker(threading.Thread):
             self.stop_event.wait(self.interval_sec)
 
     def purge_all(self):
+        if not self.cfg.local_archive_dir:
+            return
         cutoff = time.time() - self.cfg.archive_retention_days * 86400
+        base = Path(self.cfg.local_archive_dir)
         for flow in self.flows:
-            endpoint = self.endpoints[flow.name]
-            try:
-                entries = endpoint.list_files(flow.archive_dir)
-            except Exception:
+            directory = base / flow.name
+            if not directory.is_dir():
                 continue
-            for name, _size, mtime in entries:
-                if mtime < cutoff:
-                    endpoint.remove(posixpath.join(flow.archive_dir, name))
-                    self.log.info("archive purgee", extra={
-                        "flow": flow.name, "event": "purged", "file": name})
+            for entry in directory.iterdir():
+                try:
+                    if entry.is_file() and entry.stat().st_mtime < cutoff:
+                        entry.unlink()
+                        self.log.info("archive locale purgee", extra={
+                            "flow": flow.name, "event": "purged", "file": entry.name})
+                except OSError:
+                    pass
 
 
 class EventRing:
@@ -846,8 +860,7 @@ def main(argv=None) -> int:
     for f in cfg.flows:
         workers.append(FlowWorker(f, SftpEndpoint(cfg.sftps[f.source]), SftpEndpoint(cfg.sftps[f.dest]),
                                   queue, cfg, log, stop_event))
-    purge = PurgeWorker(cfg.flows, {f.name: SftpEndpoint(cfg.sftps[f.source]) for f in cfg.flows},
-                        cfg, log, stop_event)
+    purge = PurgeWorker(cfg.flows, cfg, log, stop_event)
     for w in workers:
         w.start()
     purge.start()
