@@ -5,13 +5,12 @@
 Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-sync`, qui fait la navette **bidirectionnelle** de fichiers EDI entre deux serveurs SFTP :
 
 ```
-┌─────────┐     flow_babelway_to_keane  ┌─────────┐
-│ SFTP 1  │ ─────────────────────────► │ SFTP 2  │
-│  /out   │   sftp1/out ──► sftp2/in   │  /in    │
-│  /in    │ ◄───────────────────────── │  /out   │
-│ /archive│     flow_keane_to_babelway  │ /archive│
-└─────────┘   sftp2/out ──► sftp1/in   └─────────┘
-            (daemon edi-sync au milieu)
+┌──────────────────┐  flow_babelway_to_keane   ┌──────────────────┐
+│  sftp_babelway   │ ─────────────────────────► │    sftp_keane    │
+│  /TEST/EDI/OUT   │  OUT ──► ENTREE/BW        │  .../ENTREE/BW   │
+│  /TEST/EDI/IN    │ ◄───────────────────────── │  .../SORTIE/BW   │
+└──────────────────┘  flow_keane_to_babelway   └──────────────────┘
+        (daemon edi-sync sur le serveur EDI)
 ```
 
 ## Threads du process
@@ -32,13 +31,14 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 
 ## Règles de transfert
 
-- **Anti-boucle** : seuls les répertoires `OUT` sont scannés ; un fichier livré dans `IN` n'est jamais relu.
+- **Anti-boucle** : seuls les répertoires sources sont scannés ; un fichier livré côté destination n'est jamais relu.
+- **Scan racine seule** : pas de récursivité dans les sous-dossiers de `source_dir`.
 - **Stabilité** : un fichier est traité quand sa taille est inchangée sur `stability_scans` scans consécutifs ; `.tmp`, `.part` et fichiers cachés ignorés.
 - **Anti-doublon** : contrainte `UNIQUE(flow, filename, size, src_mtime)` en SQLite.
-- **Atomicité** : upload côté destination en `.<nom>.tmp` puis `rename` ; vérification des tailles à chaque étape.
+- **Atomicité** : upload côté destination en `.<nom>.tmp` puis `rename`. Après le rename, si le fichier n'est plus visible au `stat` (plateforme qui le déplace immédiatement), warning non bloquant ; erreur seulement si taille constatée différente.
 - **Post-traitement** : après upload OK, le fichier est archivé **localement** dans `local_archive_dir/<flow>/` (ex. `/opt/EDI/ARCHIVE/flow_babelway_to_keane/`), puis **supprimé du SFTP source** ; purge automatique des archives locales après `archive_retention_days`.
 - **Conflit de nom** côté `IN` : même taille = déjà livré (on archive quand même localement et on supprime la source) ; taille différente = suffixe `.dup-<epoch>`.
-- **Retry** : backoff 30 s → 1 min → 5 min → 15 min → 1 h, puis `failed` après `max_retries` tentatives. Reprise automatique des `pending` au redémarrage.
+- **Retry** : backoff 30 s → 1 min → 5 min → 15 min → 1 h, puis `failed` après `max_retries` tentatives. Au redémarrage, `pending` repris et `failed` remis en `pending` (nouvel essai).
 
 ## Monitoring HTTPS
 
@@ -54,4 +54,4 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 - Clés SSH dédiées, `chmod 600`, pas de mot de passe ; empreintes `sha256` du serveur épinglées (liste séparée par virgules, une par clé d'hôte RSA/ECDSA/ED25519) et vérifiées à chaque connexion.
 - Config et clés dans `/etc/edi-sync/` : dossier `root:root 755`, mais `config.ini` (600) et `keys/` (700 + clés 600) appartiennent à `edisync`, l'utilisateur du service systemd, afin que le daemon puisse les lire sans les exposer aux autres comptes.
 - Service sandboxé : `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `ReadWritePaths=/var/lib/edi-sync /var/log/edi-sync`.
-- Logs JSON sur stdout → journald (`journalctl -u edi-sync -f`).
+- Logs JSON sur stdout → journald (`journalctl -u edi-sync -f`), avec champ `traceback` sur les erreurs ; option `[general] log_file` pour aussi écrire dans un fichier.
