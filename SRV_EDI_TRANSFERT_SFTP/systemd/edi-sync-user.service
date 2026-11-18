@@ -1,0 +1,15 @@
+[Unit]
+Description=EDI sync daemon (mode utilisateur, sans root)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/edi-sync/venv/bin/python %h/edi-sync/edi_sync.py --config %h/edi-sync/config.ini
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
