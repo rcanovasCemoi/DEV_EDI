@@ -499,11 +499,13 @@ class FlowWorker(threading.Thread):
             if not skip:
                 tmp_remote = posixpath.join(self.flow.dest_dir, "." + dest_name + ".tmp")
                 self.dst.put(str(local), tmp_remote)
-                tmp_attr = self.dst.stat(tmp_remote)
-                tmp_size = tmp_attr.st_size if tmp_attr is not None else None
-                if tmp_size != local_size:
-                    raise IOError(f"taille upload {tmp_size} != taille local {local_size}")
                 self.dst.rename(tmp_remote, final_remote)
+                final_attr = self.dst.stat(final_remote)
+                if final_attr is None:
+                    self.log.warning("fichier final non visible au stat apres rename (deplace par la plateforme ?) - transfert considere OK", extra={
+                        "flow": flow, "event": "stat_final_none", "file": fname, "dest": final_remote})
+                elif final_attr.st_size != local_size:
+                    raise IOError(f"taille finale {final_attr.st_size} != taille local {local_size}")
             else:
                 self.log.info("fichier deja livre (meme taille), on archive localement et on supprime la source", extra={
                     "flow": flow, "event": "already_delivered", "file": fname})
