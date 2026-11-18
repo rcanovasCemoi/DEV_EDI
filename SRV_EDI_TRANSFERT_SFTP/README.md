@@ -112,12 +112,28 @@ archive_dir = /archive/flow_b
 
 ## Installation (serveur Linux cible)
 
+**Mode system (recommandé, nécessite root)** :
+
 ```bash
 sudo bash install/install.sh
 sudo systemctl enable --now edi-sync
 ```
 
-L'installation crée l'utilisateur système `edisync`, déploie le code dans `/opt/edi-sync/`, la config dans `/etc/edi-sync/` (chmod 600), l'état dans `/var/lib/edi-sync/` et l'unité systemd.
+Crée l'utilisateur système `edisync`, déploie le code dans `/opt/edi-sync/`, la config dans `/etc/edi-sync/` (600, owner edisync) + `keys/` (700), l'état dans `/var/lib/edi-sync/` et l'unité systemd système.
+
+**Mode user (sans aucun droit root)** — le daemon tourne sous ton compte, tout dans `~/edi-sync` :
+
+```bash
+git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user
+# éditer ~/edi-sync/config.ini : key_file pointent directement vers ~/.ssh/id_rsa_* (pas de copie)
+~/edi-sync/venv/bin/python ~/edi-sync/edi_sync.py --config ~/edi-sync/config.ini --check
+systemctl --user enable --now edi-sync
+systemctl --user status edi-sync
+journalctl --user -u edi-sync -f
+```
+
+> Pour que le service user démarre aussi sans session ouverte, demander à l'admin root une seule fois : `loginctl enable-linger $USER` (sinon le service démarre à ta première connexion).
 
 ## Supervision
 
