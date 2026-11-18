@@ -140,6 +140,7 @@ class Config:
     max_retries: int = 5
     archive_retention_days: int = 7
     state_dir: str = "/var/lib/edi-sync"
+    log_file: str = ""
     sftps: dict = field(default_factory=dict)
     flows: list = field(default_factory=list)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
@@ -161,6 +162,7 @@ def load_config(path: str) -> Config:
         max_retries=getg("max_retries", 5, int),
         archive_retention_days=getg("archive_retention_days", 7, int),
         state_dir=getg("state_dir", "/var/lib/edi-sync"),
+        log_file=getg("log_file", ""),
     )
 
     for section in parser.sections():
@@ -592,6 +594,7 @@ class RingHandler(logging.Handler):
             "flow": getattr(record, "flow", None),
             "event": getattr(record, "event", None),
             "file": getattr(record, "file", None),
+            "error": getattr(record, "error", None),
         })
 
 
@@ -652,14 +655,14 @@ def render_page(status: dict) -> str:
     items = "".join(
         f"<li><span class='ts'>{esc(e.get('ts'))}</span> <span class='lvl'>{esc(e.get('level'))}</span> "
         f"[{esc(e.get('flow') or '-')}] <b>{esc(e.get('event') or '')}</b> "
-        f"{esc(e.get('file') or '')} {esc(e.get('msg') or '')}</li>"
+        f"{esc(e.get('file') or '')} {esc(e.get('msg') or '')} <span class='err'>{esc(e.get('error') or '')}</span></li>"
         for e in status["events"])
     css = ("body{font-family:system-ui,sans-serif;margin:2rem;background:#f6f7f9;color:#222}"
            "h1{font-size:1.3rem} table{border-collapse:collapse;background:#fff;width:100%}"
            "th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left;font-size:.9rem}"
            "th{background:#eee} tr.warn{background:#fff8e1} tr.err{background:#fdecea}"
            "ul{font-family:monospace;font-size:.8rem;background:#fff;border:1px solid #ddd;"
-           "padding:1rem;max-height:40vh;overflow:auto} .ts{color:#888} .lvl{color:#555}")
+           "padding:1rem;max-height:40vh;overflow:auto} .ts{color:#888} .lvl{color:#555} .err{color:#c0392b}")
     return (
         "<!doctype html><html lang='fr'><head><meta charset='utf-8'>"
         "<meta http-equiv='refresh' content='10'><title>edi-sync — monitoring</title>"
@@ -789,7 +792,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-def setup_logging(events: EventRing = None):
+def setup_logging(events: EventRing = None, log_file: str = None):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
@@ -797,6 +800,11 @@ def setup_logging(events: EventRing = None):
     root.handlers = [handler]
     if events is not None:
         root.addHandler(RingHandler(events))
+    if log_file:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        fh = logging.FileHandler(log_file)
+        fh.setFormatter(JsonFormatter())
+        root.addHandler(fh)
 
 
 def main(argv=None) -> int:
@@ -817,7 +825,7 @@ def main(argv=None) -> int:
         return 0
 
     events = EventRing()
-    setup_logging(events)
+    setup_logging(events, cfg.log_file or None)
     log = logging.getLogger("edi-sync")
 
     state = Path(cfg.state_dir)
