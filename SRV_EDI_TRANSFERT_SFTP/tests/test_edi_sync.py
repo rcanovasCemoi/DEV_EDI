@@ -386,5 +386,40 @@ class TestMkdirs(unittest.TestCase):
             self._endpoint(AlwaysFail()).mkdirs("/archive/flow_a")
 
 
+class TestLogFile(unittest.TestCase):
+    def test_log_file_option_parsed(self):
+        fd, path = tempfile.mkstemp(suffix=".ini")
+        with os.fdopen(fd, "w") as f:
+            f.write(VALID_INI.replace("state_dir = /tmp/edi-state",
+                                       "state_dir = /tmp/edi-state\nlog_file = /tmp/x/daemon.log"))
+        self.addCleanup(os.unlink, path)
+        cfg = es.load_config(path)
+        self.assertEqual(cfg.log_file, "/tmp/x/daemon.log")
+
+    def test_log_file_written(self):
+        import logging as lg
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "sub", "daemon.log")
+            root = lg.getLogger()
+            old_handlers = root.handlers[:]
+            try:
+                es.setup_logging(events=None, log_file=p)
+                lg.getLogger("t").warning("hello-test")
+                for h in root.handlers:
+                    h.flush()
+                content = open(p).read()
+                self.assertIn("hello-test", content)
+                self.assertIn('"level": "WARNING"', content)
+            finally:
+                root.handlers = old_handlers
+
+    def test_default_no_log_file(self):
+        fd, path = tempfile.mkstemp(suffix=".ini")
+        with os.fdopen(fd, "w") as f:
+            f.write(VALID_INI)
+        self.addCleanup(os.unlink, path)
+        self.assertEqual(es.load_config(path).log_file, "")
+
+
 if __name__ == "__main__":
     unittest.main()

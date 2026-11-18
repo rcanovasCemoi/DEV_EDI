@@ -4,6 +4,7 @@ stability_scans = 2
 max_retries = 5
 archive_retention_days = 7
 state_dir = /var/lib/edi-sync
+# log_file = /var/log/edi-sync/daemon.log   # optionnel : copie des logs JSON dans un fichier (utile sans acces au journal)
 
 [sftp_babelway]
 host = sftp-babelway.exemple.com
