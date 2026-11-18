@@ -73,6 +73,19 @@ python src/edi_sync.py --config config/config.ini.example --check
 
 Les tests unitaires couvrent la logique pure (config, queue SQLite, stabilité, backoff, nommage) sans dépendance à paramiko ni à un serveur SFTP. La CI GitHub Actions les rejoue à chaque push/PR sur ce sous-dossier.
 
+## Recette de fonctionnement (en production, sur le serveur EDI)
+
+`tests/recette.py` vérifie le service actif, le monitoring (`/health`, `/api/status`, heartbeats) et fait un **vrai transfert de test** (`TEST_EDI_SYNC_<ts>.edi`) par flow : dépôt source → livraison destination → suppression source → archive locale.
+
+```bash
+/opt/EDI/edi-sync/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/recette.py \
+    --config /opt/EDI/edi-sync/config.ini --monitoring-password 'MOTDEPASSE'
+# un seul flow :
+... --flow flow_keane_to_babelway
+```
+
+> Le dépôt du fichier test se fait dans `source_dir`. Si le compte SFTP est en read-only sur ce répertoire (ex. `/TEST/EDI/OUT` sur babelway), lancer la recette sur l'autre flow (ex. `flow_keane_to_babelway`, `SORTIE/BW` est writable) ou demander à la plateforme de déposer un fichier test.
+
 ## Configuration
 
 Fichier `/etc/edi-sync/config.ini` sur le serveur cible (voir `config/config.ini.example`) :
