@@ -84,6 +84,14 @@ class TestLoadConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             es.load_config(self._write(bad))
 
+    def test_dest_tmp_suffix_parsed(self):
+        cfg = es.load_config(self._write(VALID_INI))
+        self.assertEqual(cfg.flows[0].tmp_suffix, ".tmp")
+        ini = VALID_INI.replace("dest_dir = /in\n\n[flow_keane_to_babelway]",
+                                "dest_dir = /in\ndest_tmp_suffix =\n\n[flow_keane_to_babelway]")
+        cfg2 = es.load_config(self._write(ini))
+        self.assertEqual(cfg2.flows[0].tmp_suffix, "")
+
     def test_long_underscore_names(self):
         cfg = es.load_config(self._write(VALID_INI))
         self.assertEqual(set(cfg.sftps), {"sftp_babelway", "sftp_keane"})
