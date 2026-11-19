@@ -84,6 +84,16 @@ class TestLoadConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             es.load_config(self._write(bad))
 
+    def test_inline_comments_stripped(self):
+        ini = VALID_INI + "\n[monitoring]\nbind = 10.0.0.5   # commentaire inline\nport = 8443  # autre\n"
+        fd, path = tempfile.mkstemp(suffix=".ini")
+        with os.fdopen(fd, "w") as f:
+            f.write(ini)
+        self.addCleanup(os.unlink, path)
+        cfg = es.load_config(path)
+        self.assertEqual(cfg.monitoring.bind, "10.0.0.5")
+        self.assertEqual(cfg.monitoring.port, 8443)
+
     def test_dest_tmp_suffix_parsed(self):
         cfg = es.load_config(self._write(VALID_INI))
         self.assertEqual(cfg.flows[0].tmp_suffix, ".tmp")

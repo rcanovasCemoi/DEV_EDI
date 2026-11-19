@@ -149,7 +149,7 @@ class Config:
 
 
 def load_config(path: str) -> Config:
-    parser = configparser.ConfigParser()
+    parser = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
     if not parser.read(path):
         raise FileNotFoundError(f"config introuvable: {path}")
 

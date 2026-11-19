@@ -42,7 +42,9 @@ dest_tmp_suffix =
 
 [monitoring]
 enabled = true
-bind = 172.25.1.89        # IP LAN ; ou 127.0.0.1 + tunnel SSH
+# IP LAN ; ou 127.0.0.1 + tunnel SSH
+bind = 172.25.1.89
 port = 8443
 auth_user = admin
-auth_password_sha256 = __SHA256_MDP__     # echo -n 'motdepasse' | sha256sum
+# echo -n 'motdepasse' | sha256sum
+auth_password_sha256 = __SHA256_MDP__

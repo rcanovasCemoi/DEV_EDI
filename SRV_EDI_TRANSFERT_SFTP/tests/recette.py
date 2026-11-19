@@ -120,7 +120,7 @@ def main():
 
     m = cfg.monitoring
     ctx = ssl._create_unverified_context()
-    base = f"https://{m.bind}:{m.port}"
+    base = f"https://{m.bind.strip()}:{m.port}"
     headers = {}
     if m.auth_user and args.monitoring_password:
         token = base64.b64encode(f"{m.auth_user}:{args.monitoring_password}".encode()).decode()
