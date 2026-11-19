@@ -42,15 +42,15 @@ cd ~/DEV_EDI && bash SRV_EDI_TRANSFERT_SFTP/deploy.sh
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐                                        ┌─────────────────────────────────────┐
-│            sftp_babelway            │   flow_babelway_to_keane   ───────────────►   │              sftp_keane             │
-│           eu1.babelway.net          │                                        │            keane.cemoi.fr           │
-│          OUT: /TEST/EDI/OUT         │   flow_keane_to_babelway   ◄───────────────   │              ENTREE/BW              │
-│                                     │                                        │              SORTIE/BW              │
-│          IN : /TEST/EDI/IN          │                                        │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
-└─────────────────────────────────────┘                                        └─────────────────────────────────────┘
-        /TEST/EDI/OUT  ──►  /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW
-        /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ──►  /TEST/EDI/IN
+┌─────────────────────────────────────┐                             ┌─────────────────────────────────────┐
+│            sftp_babelway            │    flow_babelway_to_keane   │              sftp_keane             │
+│           eu1.babelway.net          │  ────────────────────────►  │            keane.cemoi.fr           │
+│          OUT: /TEST/EDI/OUT         │                             │              ENTREE/BW              │
+│                                     │     flow_keane_to_babelway  │              SORTIE/BW              │
+│          IN : /TEST/EDI/IN          │  ◄────────────────────────  │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
+└─────────────────────────────────────┘                             └─────────────────────────────────────┘
+    /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW  ◄────────────────────────  /TEST/EDI/OUT
+    /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ────────────────────────►  /TEST/EDI/IN
 
      daemon edi-sync sur srv025-gw-edi (/opt/EDI) — monitoring https://172.25.1.89:8443/
 ```
@@ -315,7 +315,7 @@ auth_user = admin
 auth_password_sha256 = <sha256 du mot de passe>
 ```
 
-Aperçu de la page (données de démo servies par le serveur HTTPS réel en local) :
+Aperçu de la page en production (`https://172.25.1.89:8443/`, les deux flows `ok`) :
 
 ![Page de monitoring](docs/monitoring-ui.png)
 

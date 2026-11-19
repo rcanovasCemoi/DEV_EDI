@@ -5,15 +5,15 @@
 Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-sync`, qui fait la navette **bidirectionnelle** de fichiers EDI entre deux serveurs SFTP :
 
 ```
-┌─────────────────────────────────────┐                                        ┌─────────────────────────────────────┐
-│            sftp_babelway            │   flow_babelway_to_keane   ───────────────►   │              sftp_keane             │
-│           eu1.babelway.net          │                                        │            keane.cemoi.fr           │
-│          OUT: /TEST/EDI/OUT         │   flow_keane_to_babelway   ◄───────────────   │              ENTREE/BW              │
-│                                     │                                        │              SORTIE/BW              │
-│          IN : /TEST/EDI/IN          │                                        │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
-└─────────────────────────────────────┘                                        └─────────────────────────────────────┘
-        /TEST/EDI/OUT  ──►  /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW
-        /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ──►  /TEST/EDI/IN
+┌─────────────────────────────────────┐                             ┌─────────────────────────────────────┐
+│            sftp_babelway            │    flow_babelway_to_keane   │              sftp_keane             │
+│           eu1.babelway.net          │  ────────────────────────►  │            keane.cemoi.fr           │
+│          OUT: /TEST/EDI/OUT         │                             │              ENTREE/BW              │
+│                                     │     flow_keane_to_babelway  │              SORTIE/BW              │
+│          IN : /TEST/EDI/IN          │  ◄────────────────────────  │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
+└─────────────────────────────────────┘                             └─────────────────────────────────────┘
+    /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW  ◄────────────────────────  /TEST/EDI/OUT
+    /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ────────────────────────►  /TEST/EDI/IN
 
      daemon edi-sync sur srv025-gw-edi (/opt/EDI) — monitoring https://172.25.1.89:8443/
 ```
