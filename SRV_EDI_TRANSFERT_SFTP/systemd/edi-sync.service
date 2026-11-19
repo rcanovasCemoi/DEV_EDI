@@ -1,5 +1,5 @@
 [Unit]
-Description=EDI SFTP realtime sync (bidirectionnel sftp1 <-> sftp2)
+Description=EDI SFTP realtime sync (bidirectionnel babelway <-> keane)
 After=network-online.target
 Wants=network-online.target
 
