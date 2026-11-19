@@ -32,10 +32,14 @@ git pull --ff-only
 
 MODE=""
 if [[ -z "$PREFIX" ]]; then
-  DEPLOY_PREFIX_FILE="$(find /opt -maxdepth 3 -name .deploy-prefix 2>/dev/null | head -1)"
+  DEPLOY_PREFIX_FILE="$(find /opt "$HOME" -maxdepth 4 -name .deploy-prefix -print -quit 2>/dev/null || true)"
   if [[ -n "$DEPLOY_PREFIX_FILE" ]]; then
-    MODE=system
-    PREFIX=$(head -1 "$DEPLOY_PREFIX_FILE")
+    read -r DET_MODE PREFIX < "$DEPLOY_PREFIX_FILE"
+    if [[ "$DET_MODE" == "user" || "$DET_MODE" == "system" ]]; then
+      MODE="$DET_MODE"
+    else
+      MODE=system; PREFIX="$DET_MODE"   # ancien format: 1 seule colonne = prefix, mode system
+    fi
   elif [[ -f "$HOME/.config/systemd/user/edi-sync.service" ]]; then
     MODE=user
     PREFIX=$(grep '^ExecStart=' "$HOME/.config/systemd/user/edi-sync.service" | sed 's/^ExecStart=//' | awk '{print $2}' | head -1 | xargs dirname)
@@ -53,6 +57,11 @@ if [[ -z "$PREFIX" ]]; then
 else
   MODE=user
   [[ -f /opt/edi-sync/edi_sync.py ]] && MODE=system
+fi
+if [[ "$MODE" == "system" ]] && ! sudo -n true 2>/dev/null; then
+  echo "ERREUR: mode system detecte (prefix $PREFIX) mais pas de droits sudo." >&2
+  echo "       -> soit l'admin installe en mode system, soit on reste en mode user (unite ~/.config/systemd/user)." >&2
+  exit 1
 fi
 echo "==> mode=$MODE prefix=$PREFIX"
 
