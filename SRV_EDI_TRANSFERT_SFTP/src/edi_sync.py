@@ -120,6 +120,7 @@ class FlowConfig:
     source_dir: str
     dest: str
     dest_dir: str
+    tmp_suffix: str = ".tmp"
 
 
 @dataclass
@@ -194,6 +195,7 @@ def load_config(path: str) -> Config:
                 source_dir=parser.get(section, "source_dir"),
                 dest=dst,
                 dest_dir=parser.get(section, "dest_dir"),
+                tmp_suffix=parser.get(section, "dest_tmp_suffix", fallback=".tmp"),
             ))
     if not cfg.flows:
         raise ValueError("aucune section [flow*] dans la config")
@@ -497,11 +499,14 @@ class FlowWorker(threading.Thread):
             dest_name, skip = resolve_dest_name(fname, local_size, existing_size, now())
             final_remote = posixpath.join(self.flow.dest_dir, dest_name)
             if not skip:
-                tmp_remote = posixpath.join(self.flow.dest_dir, "." + dest_name + ".tmp")
-                self.dst.put(str(local), tmp_remote)
-                if self.dst.stat(tmp_remote) is not None:
-                    self.dst.rename(tmp_remote, final_remote)
+                if self.flow.tmp_suffix:
+                    tmp_remote = posixpath.join(self.flow.dest_dir, "." + dest_name + self.flow.tmp_suffix)
                 else:
+                    tmp_remote = final_remote
+                self.dst.put(str(local), tmp_remote)
+                if tmp_remote != final_remote and self.dst.stat(tmp_remote) is not None:
+                    self.dst.rename(tmp_remote, final_remote)
+                elif tmp_remote != final_remote:
                     self.log.warning("fichier .tmp deja deplace par la plateforme apres upload - considere livre", extra={
                         "flow": flow, "event": "tmp_taken_by_platform", "file": fname, "dest": final_remote})
                 final_attr = self.dst.stat(final_remote)

@@ -34,7 +34,7 @@ Le daemon tourne sur un serveur Linux intermédiaire et gère **un thread par fl
 - **Scan racine seule** : les sous-dossiers de `source_dir` (ex. `KA/`, `REV/`, `SOL/`, `COPIES/`) **ne sont pas parcourus**.
 - **Fichier stable** : taille inchangée entre 2 scans consécutifs ; les suffixes `.tmp`/`.part` et fichiers cachés sont ignorés.
 - **Anti-doublon** : clé unique `(flow, nom, taille, mtime)` dans la queue SQLite.
-- **Transfert atomique** côté destination : upload en `.<nom>.tmp` puis rename, jamais de fichier partiel visible. Après le rename, si le fichier n'est plus visible au `stat` (la plateforme peut le déplacer immédiatement), c'est un warning, pas une erreur ; erreur seulement si la taille constatée diffère.
+- **Upload côté destination** : par défaut en `.<nom>.tmp` puis rename (atomique, jamais de partiel visible). Option `dest_tmp_suffix` par flow : **vide = upload direct au nom final** — obligatoire si la plateforme destination déplace les fichiers instantanément (ex. babelway qui prend le `.tmp` dans `IN` avant le rename). Si le `.tmp` a disparu juste après l'upload, le transfert est considéré livré (warning).
 - **Après succès** : le fichier est archivé **localement** dans `local_archive_dir/<flow>/` (ex. `/opt/EDI/ARCHIVE/flow_babelway_to_keane/`), puis **supprimé du SFTP source**, état `done`.
 - **Purge** : les archives locales sont supprimées automatiquement après N jours (`archive_retention_days`, 7 par défaut).
 - **Conflit de nom** côté `IN` : même nom + même taille = déjà livré (ignoré) ; taille différente = upload sous `<nom>.dup-<timestamp>`.

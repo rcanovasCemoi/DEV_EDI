@@ -35,7 +35,7 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 - **Scan racine seule** : pas de récursivité dans les sous-dossiers de `source_dir`.
 - **Stabilité** : un fichier est traité quand sa taille est inchangée sur `stability_scans` scans consécutifs ; `.tmp`, `.part` et fichiers cachés ignorés.
 - **Anti-doublon** : contrainte `UNIQUE(flow, filename, size, src_mtime)` en SQLite.
-- **Atomicité** : upload côté destination en `.<nom>.tmp` puis `rename`. Après le rename, si le fichier n'est plus visible au `stat` (plateforme qui le déplace immédiatement), warning non bloquant ; erreur seulement si taille constatée différente.
+- **Upload destination** : `dest_tmp_suffix` par flow, `.tmp` par défaut (upload en `.<nom>.tmp` puis `rename`, atomique). Si vide → upload direct au nom final (plateformes type babelway qui prennent les fichiers dans `IN` instantanément). Si le `.tmp` a disparu juste après l'upload (pris par la plateforme), transfert considéré livré (warning) ; erreur seulement si taille constatée différente.
 - **Post-traitement** : après upload OK, le fichier est archivé **localement** dans `local_archive_dir/<flow>/` (ex. `/opt/EDI/ARCHIVE/flow_babelway_to_keane/`), puis **supprimé du SFTP source** ; purge automatique des archives locales après `archive_retention_days`.
 - **Conflit de nom** côté `IN` : même taille = déjà livré (on archive quand même localement et on supprime la source) ; taille différente = suffixe `.dup-<epoch>`.
 - **Retry** : backoff 30 s → 1 min → 5 min → 15 min → 1 h, puis `failed` après `max_retries` tentatives. Au redémarrage, `pending` repris et `failed` remis en `pending` (nouvel essai).
