@@ -5,6 +5,38 @@ Daemon Linux, lancé en tant que **service systemd**, qui transfère en **temps 
 - `flow_babelway_to_keane` : `/TEST/EDI/OUT` (eu1.babelway.net) → `/opt/ASPEDI_FR/PRODUCTION/ENTREE/BW` (keane.cemoi.fr)
 - `flow_keane_to_babelway` : `/opt/ASPEDI_FR/PRODUCTION/SORTIE/BW` (keane.cemoi.fr) → `/TEST/EDI/IN` (eu1.babelway.net)
 
+## Démarrage rapide
+
+```bash
+# 1. cloner le depot
+git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
+
+# 2. installer (mode user sans root ; prefix ~/edi-sync par defaut, ex. /opt/EDI/edi-sync)
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-sync
+#    (mode system avec root : sudo bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh)
+
+# 3. configurer /opt/EDI/edi-sync/config.ini (voir config/config.ini.example) :
+#    [sftp_*] host/port/user/key_file/host_fingerprint, [flow_*] source/dest dirs,
+#    [general] local_archive_dir, [monitoring] bind/port/auth
+#    empreintes : ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -
+
+# 4. verifier puis demarrer
+/opt/EDI/edi-sync/venv/bin/python /opt/EDI/edi-sync/edi_sync.py --config /opt/EDI/edi-sync/config.ini --check
+systemctl --user enable --now edi-sync        # ou: sudo systemctl enable --now edi-sync
+
+# 5. superviser
+systemctl --user status edi-sync
+curl -k -u admin:MOTDEPASSE https://127.0.0.1:8443/api/status   # depuis le serveur
+# depuis ton poste : ssh -L 8443:127.0.0.1:8443 user@serveur-edi  puis https://localhost:8443/
+
+# 6. tester
+/opt/EDI/edi-sync/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/e2e_prod.py \
+    --config /opt/EDI/edi-sync/config.ini --monitoring-password 'MOTDEPASSE'
+
+# 7. mettre a jour plus tard
+cd ~/DEV_EDI && bash SRV_EDI_TRANSFERT_SFTP/deploy.sh
+```
+
 ## Architecture
 
 ```
@@ -22,7 +54,7 @@ Le daemon tourne sur un serveur Linux intermédiaire et gère **un thread par fl
 |---|---|
 | Scanner (par flux) | Scanne la **racine** du répertoire source distant toutes les N secondes (pas de récursivité dans les sous-dossiers), détecte les fichiers nouveaux et *stables* |
 | Queue persistante (SQLite) | Stocke chaque transfert avec son état (`pending`, `done`, `failed`), ses tentatives et ses timestamps ; au démarrage, les `failed` sont remis en `pending` |
-| Worker (par flux) | Télécharge vers `staging/`, vérifie la taille source↔local, upload vers `IN/.<nom>.tmp` puis **rename atomique**, archive localement, supprime la source |
+| Worker (par flux) | Télécharge vers `staging/`, vérifie la taille source↔local, upload côté dest (direct au nom final si `dest_tmp_suffix` vide, sinon `.<nom>.tmp` + rename), archive localement, supprime la source |
 | Purge | Supprime les archives locales de plus de `archive_retention_days` jours (toutes les heures) |
 | Monitoring | Mini serveur HTTPS (voir ci-dessous) |
 | Superviseur | Reconnexion SFTP automatique, keepalive 30 s, backoff exponentiel, arrêt propre sur SIGTERM/SIGINT |
@@ -58,6 +90,8 @@ SRV_EDI_TRANSFERT_SFTP/
 │   └── deploy.sh              # mise a jour apres git pull (pull + copie + restart + checks, +x)
 ├── tests/
 │   ├── test_edi_sync.py       # tests unitaires (logique pure + serveur HTTP de monitoring, loopback)
+│   ├── sftp_test_server.py    # 2 serveurs SFTP de test en loopback (pour le E2E local)
+│   ├── e2e_local.py           # E2E local complet : lance serveurs de test + daemon + scenarios (✅)
 │   ├── recette.py             # recette de fonctionnement (service, monitoring, transfert de test)
 │   └── e2e_prod.py            # test E2E automatique en production, checks ✅ et bandeau final (+x)
 └── docs/
@@ -70,8 +104,9 @@ SRV_EDI_TRANSFERT_SFTP/
 ```bash
 cd SRV_EDI_TRANSFERT_SFTP
 python -m py_compile src/edi_sync.py
-python -m unittest discover -s tests -v
+python -m unittest discover -s tests -v          # unitaires (sans paramiko)
 python src/edi_sync.py --config config/config.ini.example --check
+pip install paramiko && python tests/e2e_local.py   # E2E local complet (2 serveurs SFTP de test)
 ```
 
 Les tests unitaires couvrent la logique pure (config, queue SQLite, stabilité, backoff, nommage) sans dépendance à paramiko ni à un serveur SFTP. La CI GitHub Actions les rejoue à chaque push/PR sur ce sous-dossier.
@@ -137,6 +172,27 @@ source_dir = /out
 dest = sftp_babelway
 dest_dir = /in
 ```
+
+### Référence des options
+
+| Section | Option | Défaut | Rôle |
+|---|---|---|---|
+| `[general]` | `scan_interval_sec` | 5 | période de scan du répertoire source |
+| | `stability_scans` | 2 | nb de scans à taille identique avant de traiter un fichier |
+| | `max_retries` | 5 | tentatives max avant `failed` (backoff 30 s → 1 h) |
+| | `archive_retention_days` | 7 | rétention des archives locales (purge horaire) |
+| | `state_dir` | `/var/lib/edi-sync` | queue.db, staging/, heartbeats, certs |
+| | `local_archive_dir` | vide | archive locale `<dir>/<flow>/` ; vide = pas d'archive |
+| | `log_file` | vide | copie des logs JSON dans un fichier |
+| `[sftp_*]` | `host`, `port`, `user` | — | endpoint SFTP |
+| | `key_file` | — | clé privée SSH (600) |
+| | `host_fingerprint` | — | une ou plusieurs `sha256:...` (virgules), vérifiées à chaque connexion |
+| `[flow_*]` | `source`, `dest` | — | références aux sections `[sftp_*]` |
+| | `source_dir`, `dest_dir` | — | répertoires distant source/destination (racine seule, pas de récursivité) |
+| | `dest_tmp_suffix` | `.tmp` | suffixe temporaire côté dest ; **vide = upload direct au nom final** |
+| `[monitoring]` | `enabled`, `bind`, `port` | true, 127.0.0.1, 8443 | serveur HTTPS de supervision (loopback !) |
+| | `tls_cert`, `tls_key` | auto-signé | certificat HTTPS |
+| | `auth_user`, `auth_password_sha256` | vide | Basic Auth optionnelle |
 
 ## Installation (serveur Linux cible)
 
@@ -217,3 +273,32 @@ Aperçu de la page (données de démo servies par le serveur HTTPS réel en loca
 - Empreintes du serveur SFTP épinglées (`host_fingerprint` : une ou plusieurs `sha256:...` séparées par des virgules — récupérées via `ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -`), vérification à chaque connexion
 - Config et clés lisibles uniquement par l'utilisateur de service `edisync` (et `root`) : `/etc/edi-sync/config.ini` en 600 owner `edisync`, `/etc/edi-sync/keys/` en 700 owner `edisync`, clés en 600
 - Service systemd sandboxé : `NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp`, `ReadWritePaths` limités
+
+## FAQ / problèmes connus
+
+- **`Permission denied` au dépôt dans `source_dir`** : le compte SFTP est en read-only sur ce répertoire (ex. `/TEST/EDI/OUT` sur babelway) → le transfert fonctionne en lecture, mais le test de dépôt échouera (SKIP dans `e2e_prod.py`) ; tester via l'autre sens ou un dépôt manuel plateforme/channel.
+- **Fichier reçu en `.nom.tmp` côté plateforme** : la plateforme destination prend le `.tmp` avant le rename → mettre `dest_tmp_suffix =` (vide) dans le flow concerné = upload direct au nom final.
+- **`empreinte du serveur ... invalide`** : le serveur a plusieurs clés d'hôte (RSA/ECDSA/ED25519) et paramiko en choisit une autre → lister toutes les empreintes : `ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -` et les mettre toutes dans `host_fingerprint` (séparées par des virgules).
+- **`journalctl --user` : permission denied** → demander à l'admin root `usermod -aG systemd-journal $USER` (reconnexion), ou renseigner `log_file` dans `[general]` et lire ce fichier.
+- **Service user inactif sans session ouverte** → demander à l'admin root `loginctl enable-linger $USER`.
+- **`config invalide: File contains no section headers`** → le heredoc de la config n'a pas été rempli correctement (vérifier `cat config.ini`).
+- **`Address already in use` sur le port monitoring** → un autre process edi-sync tourne encore (`pkill -f edi_sync.py`, attendre la fin du restart).
+- **Après un crash, les `failed` ne repartent pas** → normal : ils sont remis en `pending` automatiquement à chaque redémarrage du daemon (`systemctl --user restart edi-sync`).
+
+## Faire évoluer le projet
+
+```bash
+# tests en local (unitaires + E2E local avec 2 serveurs SFTP de test en loopback)
+cd SRV_EDI_TRANSFERT_SFTP
+python -m unittest discover -s tests -v          # unitaires (sans paramiko)
+pip install paramiko && python tests/e2e_local.py  # E2E local complet (15 checks ✅)
+
+# workflow de contribution
+git checkout -b vibe/<mon-sujet>-0b70ca
+# ... modifier ...
+git commit -m "..." && git push -u origin vibe/<mon-sujet>-0b70ca
+gh pr create --repo rcanovasCemoi/DEV_EDI --draft   # CI lance les tests automatiquement
+# merge dans main une fois la CI verte
+```
+
+La CI (`.github/workflows/tests-srv-edi-transfert-sftp.yml`) lance à chaque push/PR sur ce dossier : syntaxe, tests unitaires, `--check` sur l'exemple de config, et le **E2E local** (`tests/e2e_local.py`).
