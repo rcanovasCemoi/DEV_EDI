@@ -245,7 +245,25 @@ journalctl -u edi-sync -f
 
 Le daemon embarque un serveur HTTPS dans un thread dédié (même process, état partagé avec la queue) :
 
-- **Accès** : bind `127.0.0.1:8443` par défaut — **ne jamais binder `0.0.0.0`**. Accès recommandé via tunnel SSH : `ssh -L 8443:127.0.0.1:8443 utilisateur@serveur-edi`, puis `https://localhost:8443/` (ou proxy SOCKS `ssh -D 1080 ...`). Alternative en réseau interne maîtrisé : `bind = <IP privée>` + règle pare-feu restreignant les IP sources + Basic Auth (jamais ouvert sur Internet). Pour supprimer l'alerte « certificat non sécurisé » du navigateur : fournir `tls_cert`/`tls_key` signés par votre CA interne.
+- **Accès** : bind `127.0.0.1:8443` par défaut — **ne jamais binder `0.0.0.0`**. Accès recommandé via tunnel SSH : `ssh -L 8443:127.0.0.1:8443 utilisateur@serveur-edi`, puis `https://localhost:8443/` (ou proxy SOCKS `ssh -D 1080 ...`). Alternative en réseau interne maîtrisé : `bind = <IP privée du serveur>` + règle pare-feu n'autorisant le port 8443 **que depuis le sous-réseau LAN** + Basic Auth (jamais ouvert sur Internet, jamais `0.0.0.0`). Pour supprimer l'alerte « certificat non sécurisé » du navigateur : fournir `tls_cert`/`tls_key` signés par votre CA interne.
+
+Exemple (serveur 172.25.1.89, LAN 172.25.0.0/16) :
+
+```ini
+[monitoring]
+bind = 172.25.1.89
+port = 8443
+```
+
+```bash
+# pare-feu : 8443 uniquement depuis le LAN (firewalld)
+sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=172.25.0.0/16 port protocol=tcp port=8443 accept'
+sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 port protocol=tcp port=8443 drop'
+sudo firewall-cmd --reload
+# ou iptables :
+#   sudo iptables -I INPUT -p tcp --dport 8443 -s 172.25.0.0/16 -j ACCEPT
+#   sudo iptables -I INPUT -p tcp --dport 8443 -j DROP
+```
 - `GET /` : page HTML de suivi des flux (état `ok`/`stale`/`error`, heartbeat, compteurs `pending/done/failed`, 30 derniers événements avec leur champ `error`, auto-refresh 10 s)
 - `GET /api/status` : mêmes données en JSON (événements avec `error`)
 - `GET /health` : sonde `200 ok`
