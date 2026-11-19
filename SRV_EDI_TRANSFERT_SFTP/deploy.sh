@@ -98,7 +98,7 @@ if [[ "$RESTART" -eq 1 ]]; then
   BIND=$(sed -n 's/^bind *= *//p' "$PREFIX/config.ini" | head -1); BIND="${BIND:-127.0.0.1}"
   PORT=$(sed -n 's/^port *= *//p' "$PREFIX/config.ini" | head -1); PORT="${PORT:-8443}"
   code="000"
-  for _ in $(seq 1 10); do
+  for _ in $(seq 1 45); do
     code=$(curl -sk -o /dev/null -w "%{http_code}" "https://$BIND:$PORT/health" || true)
     [[ "$code" != "000" && -n "$code" ]] && break
     sleep 1
