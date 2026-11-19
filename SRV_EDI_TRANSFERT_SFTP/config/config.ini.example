@@ -28,15 +28,15 @@ source = sftp_babelway
 source_dir = /out
 dest = sftp_keane
 dest_dir = /in
-# dest_tmp_suffix = .tmp   # upload en .<nom>.tmp puis rename (defaut) ; laisser VIDE pour uploader directement au nom final
-                          # (obligatoire si la plateforme destination deplace les fichiers instantanement, ex. babelway IN)
+dest_tmp_suffix =         # upload direct au nom final (pas de .tmp+rename) : requis si la plateforme destination prend les fichiers instantanement
 
 [flow_keane_to_babelway]
 source = sftp_keane
 source_dir = /out
 dest = sftp_babelway
 dest_dir = /in
-dest_tmp_suffix =         # upload direct au nom final (pas de .tmp) car babelway prend les fichiers dans IN instantanement
+dest_tmp_suffix =         # idem (babelway prend les fichiers dans IN instantanement)
+# pour revenir au .tmp+rename (atomique) sur un serveur classique : dest_tmp_suffix = .tmp
 
 [monitoring]
 enabled = true
