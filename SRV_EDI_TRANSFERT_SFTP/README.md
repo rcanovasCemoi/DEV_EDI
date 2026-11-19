@@ -301,6 +301,7 @@ Aperçu de la page (données de démo servies par le serveur HTTPS réel en loca
 - **Service user inactif sans session ouverte** → demander à l'admin root `loginctl enable-linger $USER`.
 - **`config invalide: File contains no section headers`** → le heredoc de la config n'a pas été rempli correctement (vérifier `cat config.ini`).
 - **`Address already in use` sur le port monitoring** → un autre process edi-sync tourne encore (`pkill -f edi_sync.py`, attendre la fin du restart).
+- **Port 8443 inaccessible depuis mon poste mais OK en local** (`Test-NetConnection` False, ping OK) → ACL inter-VLAN : le port 8443 n'est pas ouvert entre le VLAN des postes et celui du serveur. Solutions : (a) demander à l'admin réseau d'ouvrir TCP/8443 poste→serveur, puis accéder directement à `https://<IP-serveur>:8443/` ; (b) sinon, tunnel SSH par utilisateur (le port 22 passe déjà) : `ssh -L 8443:<IP-serveur>:8443 utilisateur@serveur-edi` puis `https://localhost:8443/`.
 - **Après un crash, les `failed` ne repartent pas** → normal : ils sont remis en `pending` automatiquement à chaque redémarrage du daemon (`systemctl --user restart edi-sync`).
 
 ## Faire évoluer le projet
