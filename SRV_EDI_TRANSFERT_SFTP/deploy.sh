@@ -32,18 +32,21 @@ git pull --ff-only
 
 MODE=""
 if [[ -z "$PREFIX" ]]; then
-  if [[ -f "$HOME/.config/systemd/user/edi-sync.service" ]]; then
+  if [[ -f /opt/edi-sync/.deploy-prefix ]]; then
+    MODE=system
+    PREFIX=$(head -1 /opt/edi-sync/.deploy-prefix)
+  elif [[ -f "$HOME/.config/systemd/user/edi-sync.service" ]]; then
     MODE=user
-    PREFIX=$(grep '^ExecStart=' "$HOME/.config/systemd/user/edi-sync.service" | sed 's/^ExecStart=//' | awk '{print $2}' | xargs dirname)
-    if [[ -z "$PREFIX" || ! -d "$PREFIX" ]]; then
-      echo "prefix non detecte depuis l'unite user -> passer --prefix /opt/EDI/edi-sync" >&2
-      exit 2
-    fi
+    PREFIX=$(grep '^ExecStart=' "$HOME/.config/systemd/user/edi-sync.service" | sed 's/^ExecStart=//' | awk '{print $2}' | head -1 | xargs dirname)
   elif [[ -f /opt/edi-sync/edi_sync.py ]]; then
     MODE=system
     PREFIX=/opt/edi-sync
   else
     echo "prefix inconnu : passer --prefix /opt/EDI/edi-sync" >&2
+    exit 2
+  fi
+  if [[ -z "$PREFIX" || ! -d "$PREFIX" ]]; then
+    echo "prefix invalide ('$PREFIX') : passer --prefix /opt/EDI/edi-sync" >&2
     exit 2
   fi
 else
