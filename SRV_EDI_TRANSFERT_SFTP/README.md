@@ -221,6 +221,20 @@ journalctl --user -u edi-sync -f    # ou: tail -f /opt/EDI/edi-sync/log/daemon.l
 
 > Pour que le service user démarre aussi sans session ouverte, demander à l'admin root une seule fois : `loginctl enable-linger $USER` (sinon le service démarre à ta première connexion).
 
+## Démarrage au boot du serveur (3 options)
+
+| Option | Commande | Quand |
+|---|---|---|
+| **Mode system** (root, une fois) | `sudo install/install.sh` + `sudo systemctl enable edi-sync` | si tu as les droits root : démarrage natif au boot, supervision `Restart=always` |
+| **Linger** (root, une fois) | `sudo loginctl enable-linger $USER` | en mode user : le service `systemctl --user` démarre au boot sans session ouverte (vérif : `loginctl show-user $USER \| grep Linger` → `yes`) |
+| **Cron @reboot** (sans aucun root) | `install.sh --user <prefix> --cron` | ajoute `@reboot <prefix>/run.sh` au crontab de ton compte + mini-superviseur `run.sh` (relance toutes les 10 s si le daemon tombe) |
+
+```bash
+# option cron (sans root) :
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-sync --cron
+crontab -l | grep run.sh        # verif: @reboot /opt/EDI/edi-sync/run.sh
+```
+
 ## Mise à jour après un `git pull`
 
 ```bash

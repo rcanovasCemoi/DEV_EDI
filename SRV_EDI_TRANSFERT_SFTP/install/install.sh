@@ -2,7 +2,14 @@
 set -euo pipefail
 
 MODE=system
-[[ "${1:-}" == "--user" ]] && MODE=user
+CRON=0
+for arg in "$@"; do
+  case "$arg" in
+    --user) MODE=user ;;
+    --cron) CRON=1 ;;
+  esac
+done
+# --cron (mode user) : ajoute un @reboot au crontab -> demarrage au boot du serveur SANS root
 # usage : install.sh            -> mode system (root), prefix /opt/edi-sync
 #         install.sh --user [PREFIX] -> mode user, prefix par defaut ~/edi-sync (ex: /opt/EDI/edi-sync)
 
@@ -95,4 +102,24 @@ if [[ "$MODE" == "user" ]]; then
   echo "  5. Logs : journalctl --user -u edi-sync -f"
 else
   echo "  5. Logs : journalctl -u edi-sync -f"
+fi
+
+if [[ "$MODE" == "user" && "$CRON" == "1" ]]; then
+  echo "==> cron @reboot (demarrage au boot sans root, avec mini-superviseur run.sh)"
+  cat > "${APP_DIR}/run.sh" <<'RUNSH'
+#!/usr/bin/env bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while true; do
+  "$DIR/venv/bin/python" "$DIR/edi_sync.py" --config "$DIR/config.ini" >> "$DIR/log/daemon.log" 2>&1
+  echo "$(date -Is) edi_sync sorti rc=$? -> relance dans 10s" >> "$DIR/log/daemon.log"
+  sleep 10
+done
+RUNSH
+  chmod 0755 "${APP_DIR}/run.sh"
+  if command -v crontab >/dev/null 2>&1; then
+    (crontab -l 2>/dev/null | grep -v "edi-sync/run.sh"; echo "@reboot ${APP_DIR}/run.sh") | crontab -
+    echo "   @reboot ajoute au crontab de $(id -un) : $(crontab -l 2>/dev/null | grep run.sh)"
+  else
+    echo "   WARN: crontab absent -> ajouter manuellement : @reboot ${APP_DIR}/run.sh"
+  fi
 fi
