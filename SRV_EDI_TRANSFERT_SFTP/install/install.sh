@@ -3,12 +3,18 @@ set -euo pipefail
 
 MODE=system
 CRON=0
-for arg in "$@"; do
-  case "$arg" in
-    --user) MODE=user ;;
-    --cron) CRON=1 ;;
+PREFIX=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --user) MODE=user; shift ;;
+    --cron) CRON=1; shift ;;
+    --prefix) PREFIX="$2"; shift 2 ;;
+    --*) echo "option inconnue: $1" >&2; exit 2 ;;
+    *) if [[ -z "$PREFIX" ]]; then PREFIX="$1"; fi; shift ;;   # positionnel = prefix
   esac
 done
+# usage : install.sh [--prefix /opt/XXX]                  -> mode system (root), prefix defaut /opt/edi-sync
+#         install.sh --user [PREFIX] [--cron] [--prefix P] -> mode user
 # --cron (mode user) : ajoute un @reboot au crontab -> demarrage au boot du serveur SANS root
 # usage : install.sh            -> mode system (root), prefix /opt/edi-sync
 #         install.sh --user [PREFIX] -> mode user, prefix par defaut ~/edi-sync (ex: /opt/EDI/edi-sync)
@@ -20,7 +26,7 @@ if [[ "$MODE" == "system" ]]; then
     echo "Mode system : execute en root (sudo). Sans root, utiliser : install.sh --user [PREFIX]" >&2
     exit 1
   fi
-  APP_DIR=/opt/edi-sync
+  APP_DIR="${PREFIX:-/opt/edi-sync}"
   CONF_DIR=/etc/edi-sync
   STATE_DIR=/var/lib/edi-sync
   LOG_DIR=/var/log/edi-sync
@@ -78,13 +84,10 @@ fi
 chown "${CONF_OWNER}" "${CONF_DIR}/config.ini" 2>/dev/null || true
 chmod 0600 "${CONF_DIR}/config.ini"
 
-echo "==> Unite systemd dans ${UNIT_DIR}"
-if [[ "$MODE" == "user" ]]; then
-  sed "s|__APP_DIR__|${APP_DIR}|g" "${UNIT_SRC}" > "${UNIT_DIR}/edi-sync.service"
-  chmod 0644 "${UNIT_DIR}/edi-sync.service"
-else
-  install -m 0644 "${UNIT_SRC}" "${UNIT_DIR}/edi-sync.service"
-fi
+echo "==> Unite systemd dans ${UNIT_DIR} (prefix ${APP_DIR})"
+sed "s|__APP_DIR__|${APP_DIR}|g" "${UNIT_SRC}" > "${UNIT_DIR}/edi-sync.service.tmp"
+install -m 0644 "${UNIT_DIR}/edi-sync.service.tmp" "${UNIT_DIR}/edi-sync.service"
+rm -f "${UNIT_DIR}/edi-sync.service.tmp"
 if ! ${SYSTEMCTL} daemon-reload 2>/dev/null; then
   echo "WARN: '${SYSTEMCTL} daemon-reload' a echoue (systemd ${MODE} non actif ici ?) - l'unite est ecrite, charge-la plus tard" >&2
 fi

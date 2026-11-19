@@ -32,9 +32,10 @@ git pull --ff-only
 
 MODE=""
 if [[ -z "$PREFIX" ]]; then
-  if [[ -f /opt/edi-sync/.deploy-prefix ]]; then
+  DEPLOY_PREFIX_FILE="$(find /opt -maxdepth 3 -name .deploy-prefix 2>/dev/null | head -1)"
+  if [[ -n "$DEPLOY_PREFIX_FILE" ]]; then
     MODE=system
-    PREFIX=$(head -1 /opt/edi-sync/.deploy-prefix)
+    PREFIX=$(head -1 "$DEPLOY_PREFIX_FILE")
   elif [[ -f "$HOME/.config/systemd/user/edi-sync.service" ]]; then
     MODE=user
     PREFIX=$(grep '^ExecStart=' "$HOME/.config/systemd/user/edi-sync.service" | sed 's/^ExecStart=//' | awk '{print $2}' | head -1 | xargs dirname)

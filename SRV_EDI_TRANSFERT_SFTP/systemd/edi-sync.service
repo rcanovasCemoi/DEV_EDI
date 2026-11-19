@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=edisync
 Group=edisync
-ExecStart=/opt/edi-sync/venv/bin/python /opt/edi-sync/edi_sync.py --config /etc/edi-sync/config.ini
+ExecStart=__APP_DIR__/venv/bin/python __APP_DIR__/edi_sync.py --config /etc/edi-sync/config.ini
 Restart=always
 RestartSec=10
 Environment=PYTHONUNBUFFERED=1
