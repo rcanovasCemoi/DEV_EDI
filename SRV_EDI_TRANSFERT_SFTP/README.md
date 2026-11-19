@@ -317,6 +317,7 @@ Aperçu de la page en production (`https://172.25.1.89:8443/`, les deux flows `o
 
 ## Sécurité
 
+- **Tous les mots de passe / secrets sont dans le KeePass de l'entreprise** (y compris le mot de passe du monitoring Basic Auth) — jamais dans le dépôt, jamais en clair dans les fichiers de config (on ne stocke que son hash `sha256` dans `auth_password_sha256`).
 - Clés SSH dédiées par sens de transfert (`chmod 600`), **pas de mot de passe**
 - Empreintes du serveur SFTP épinglées (`host_fingerprint` : une ou plusieurs `sha256:...` séparées par des virgules — récupérées via `ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -`), vérification à chaque connexion
 - Config et clés lisibles uniquement par l'utilisateur de service `edisync` (et `root`) : `/etc/edi-sync/config.ini` en 600 owner `edisync`, `/etc/edi-sync/keys/` en 700 owner `edisync`, clés en 600

@@ -1,3 +1,4 @@
+# Rappel : tous les mots de passe/secrets sont dans le KeePass entreprise — ne jamais les mettre en clair ici.
 # Template de configuration MODE SYSTEM (root) pour srv025-gw-edi.
 # install.sh (mode system) copie ce fichier vers /etc/edi-sync/config.ini.
 # SECURITE : ne PAS commiter les vraies empreintes ni le hash du mot de passe

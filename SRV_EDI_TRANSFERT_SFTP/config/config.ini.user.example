@@ -1,3 +1,4 @@
+# Rappel : tous les mots de passe/secrets sont dans le KeePass entreprise — ne jamais les mettre en clair ici.
 # Template MODE USER pour /opt/EDI (compte babelway) — utilisé par : install.sh --user /opt/EDI
 # Les placeholders __APP_DIR__ sont remplacés par le prefix ; remplacer __FP_*__ et __SHA256_MDP__
 # LOCALEMENT uniquement (ne jamais commiter de vrais secrets dans le depot public).
