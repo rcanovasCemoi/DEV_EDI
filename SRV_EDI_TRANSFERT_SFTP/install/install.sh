@@ -75,6 +75,7 @@ fi
 if ! ${SYSTEMCTL} daemon-reload 2>/dev/null; then
   echo "WARN: '${SYSTEMCTL} daemon-reload' a echoue (systemd ${MODE} non actif ici ?) - l'unite est ecrite, charge-la plus tard" >&2
 fi
+echo "${APP_DIR}" > "${APP_DIR}/.deploy-prefix"
 
 echo
 echo "Installation terminee (mode ${MODE}). Etapes restantes :"
