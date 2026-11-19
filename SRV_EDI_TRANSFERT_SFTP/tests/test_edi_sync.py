@@ -523,5 +523,19 @@ class TestJsonFormatter(unittest.TestCase):
         self.assertNotIn("traceback", es.JsonFormatter().format(rec))
 
 
+class TestLogging(unittest.TestCase):
+    def test_paramiko_logger_quiet(self):
+        import logging as lg
+        root = lg.getLogger()
+        old_handlers = root.handlers[:]
+        old_paramiko_level = lg.getLogger("paramiko").level
+        try:
+            es.setup_logging()
+            self.assertGreaterEqual(lg.getLogger("paramiko").level, lg.WARNING)
+        finally:
+            root.handlers = old_handlers
+            lg.getLogger("paramiko").setLevel(old_paramiko_level)
+
+
 if __name__ == "__main__":
     unittest.main()

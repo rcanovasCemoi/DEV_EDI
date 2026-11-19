@@ -843,6 +843,8 @@ def setup_logging(events: EventRing = None, log_file: str = None):
         fh = logging.FileHandler(log_file)
         fh.setFormatter(JsonFormatter())
         root.addHandler(fh)
+    # silence le bruit paramiko (banniere du serveur, "Connected...", "Auth OK") : on garde WARNING+
+    logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
 def main(argv=None) -> int:

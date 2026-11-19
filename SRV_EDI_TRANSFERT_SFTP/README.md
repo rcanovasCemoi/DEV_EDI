@@ -268,7 +268,7 @@ journalctl -u edi-sync -f
 
 - Heartbeat par flow : `<state_dir>/heartbeat_flow_babelway_to_keane`, `heartbeat_flow_keane_to_babelway` (nommés d'après les sections `[flow_*]`)
 - Métriques `pending/done/failed` par flow dans la base SQLite (`<state_dir>/queue.db`)
-- Logs JSON sur stdout (journald) ; option `[general] log_file = /chemin/daemon.log` pour aussi écrire dans un fichier (utile en mode user sans accès au journal). Les erreurs incluent un champ `traceback`
+- Logs JSON sur stdout (journald) ; option `[general] log_file = /chemin/daemon.log` pour aussi écrire dans un fichier (utile en mode user sans accès au journal). Les erreurs incluent un champ `traceback`. Le bruit paramiko (bannière du serveur SFTP, « Connected… », « Auth OK ») est filtré (logger `paramiko` en WARNING) ; pour supprimer la bannière à la source, c'est côté serveur (directive `Banner` de sshd, à retirer par l'admin du serveur SFTP).
 - Alerte si heartbeat absent ou si des transferts sont en `failed`
 
 ## Monitoring (mini serveur HTTPS embarqué)
