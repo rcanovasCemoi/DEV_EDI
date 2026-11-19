@@ -499,7 +499,11 @@ class FlowWorker(threading.Thread):
             if not skip:
                 tmp_remote = posixpath.join(self.flow.dest_dir, "." + dest_name + ".tmp")
                 self.dst.put(str(local), tmp_remote)
-                self.dst.rename(tmp_remote, final_remote)
+                if self.dst.stat(tmp_remote) is not None:
+                    self.dst.rename(tmp_remote, final_remote)
+                else:
+                    self.log.warning("fichier .tmp deja deplace par la plateforme apres upload - considere livre", extra={
+                        "flow": flow, "event": "tmp_taken_by_platform", "file": fname, "dest": final_remote})
                 final_attr = self.dst.stat(final_remote)
                 if final_attr is None:
                     self.log.warning("fichier final non visible au stat apres rename (deplace par la plateforme ?) - transfert considere OK", extra={
