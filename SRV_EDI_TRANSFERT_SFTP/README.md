@@ -54,7 +54,8 @@ SRV_EDI_TRANSFERT_SFTP/
 │   ├── edi-sync.service       # unité systemd (mode system, root)
 │   └── edi-sync-user.service  # unité systemd --user (mode sans root, template __APP_DIR__)
 ├── install/
-│   └── install.sh             # playbook d'installation (modes system / --user [PREFIX])
+│   ├── install.sh             # playbook d'installation (modes system / --user [PREFIX])
+│   └── deploy.sh              # mise a jour apres git pull (pull + copie + restart + checks, +x)
 ├── tests/
 │   └── test_edi_sync.py       # tests unitaires (logique pure + serveur HTTP de monitoring, loopback)
 └── docs/
@@ -150,6 +151,16 @@ journalctl --user -u edi-sync -f    # ou: tail -f /opt/EDI/edi-sync/log/daemon.l
 ```
 
 > Pour que le service user démarre aussi sans session ouverte, demander à l'admin root une seule fois : `loginctl enable-linger $USER` (sinon le service démarre à ta première connexion).
+
+## Mise à jour après un `git pull`
+
+```bash
+cd ~/DEV_EDI
+bash SRV_EDI_TRANSFERT_SFTP/deploy.sh              # pull + deploiement + restart + verifications
+bash SRV_EDI_TRANSFERT_SFTP/deploy.sh --recette    # + recette de fonctionnement (tests/recette.py)
+```
+
+`deploy.sh` détecte automatiquement le mode (system/user) et le préfixe, copie le daemon, relance l'installation complète uniquement si `install.sh` / `requirements.txt` / les unités systemd ont changé (sha suivi dans `<prefix>/.deploy-sha`), redémarre le service et vérifie (`--check`, service actif, sonde `/health`).
 
 ## Supervision
 
