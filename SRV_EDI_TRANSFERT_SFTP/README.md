@@ -49,10 +49,6 @@ cd ~/DEV_EDI && bash SRV_EDI_TRANSFERT_SFTP/deploy.sh
 │                                     │     flow_keane_to_babelway  │              SORTIE/BW              │
 │          IN : /TEST/EDI/IN          │  ◄────────────────────────  │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
 └─────────────────────────────────────┘                             └─────────────────────────────────────┘
-    /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW  ◄────────────────────────  /TEST/EDI/OUT
-    /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ────────────────────────►  /TEST/EDI/IN
-
-     daemon edi-sync sur srv025-gw-edi (/opt/EDI) — monitoring https://172.25.1.89:8443/
 ```
 
 Le daemon tourne sur un serveur Linux intermédiaire et gère **un thread par flux** (connexions SFTP dédiées par flux) :

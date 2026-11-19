@@ -12,10 +12,6 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 │                                     │     flow_keane_to_babelway  │              SORTIE/BW              │
 │          IN : /TEST/EDI/IN          │  ◄────────────────────────  │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
 └─────────────────────────────────────┘                             └─────────────────────────────────────┘
-    /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW  ◄────────────────────────  /TEST/EDI/OUT
-    /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ────────────────────────►  /TEST/EDI/IN
-
-     daemon edi-sync sur srv025-gw-edi (/opt/EDI) — monitoring https://172.25.1.89:8443/
 ```
 
 ## Threads du process
