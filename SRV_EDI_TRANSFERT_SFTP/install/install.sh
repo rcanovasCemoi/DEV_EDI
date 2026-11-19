@@ -16,8 +16,6 @@ done
 # usage : install.sh [--prefix /opt/XXX]                  -> mode system (root), prefix defaut /opt/edi-sync
 #         install.sh --user [PREFIX] [--cron] [--prefix P] -> mode user
 # --cron (mode user) : ajoute un @reboot au crontab -> demarrage au boot du serveur SANS root
-# usage : install.sh            -> mode system (root), prefix /opt/edi-sync
-#         install.sh --user [PREFIX] -> mode user, prefix par defaut ~/edi-sync (ex: /opt/EDI/edi-sync)
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -46,7 +44,7 @@ if [[ "$MODE" == "system" ]]; then
   install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0700 "${CONF_DIR}/keys"
   install -d -o "${SVC_USER}" -g "${SVC_USER}" -m 0750 "${LOG_DIR}"
 else
-  APP_DIR="${2:-${HOME}/edi-sync}"
+  APP_DIR="${PREFIX:-${HOME}/edi-sync}"
   CONF_DIR="${APP_DIR}"
   STATE_DIR="${APP_DIR}/state"
   LOG_DIR="${APP_DIR}/log"
@@ -70,13 +68,16 @@ python3 -m venv "${APP_DIR}/venv"
 
 echo "==> Configuration"
 if [[ ! -f "${CONF_DIR}/config.ini" ]]; then
-  # en mode system, preferer le template system (chemins /etc,/opt,/var) s'il existe
+  # templates dedies : system -> config.ini.system.example ; user -> config.ini.user.example (avec __APP_DIR__)
   if [[ "$MODE" == "system" && -f "${SRC_DIR}/config/config.ini.system.example" ]]; then
-    EXAMPLE="${SRC_DIR}/config/config.ini.system.example"
+    install "${OWNER_ARGS[@]}" -m 0600 "${SRC_DIR}/config/config.ini.system.example" "${CONF_DIR}/config.ini"
+  elif [[ "$MODE" == "user" && -f "${SRC_DIR}/config/config.ini.user.example" ]]; then
+    sed "s|__APP_DIR__|${APP_DIR}|g" "${SRC_DIR}/config/config.ini.user.example" > "${CONF_DIR}/config.ini.tmp"
+    install "${OWNER_ARGS[@]}" -m 0600 "${CONF_DIR}/config.ini.tmp" "${CONF_DIR}/config.ini"
+    rm -f "${CONF_DIR}/config.ini.tmp"
   else
-    EXAMPLE="${SRC_DIR}/config/config.ini.example"
+    install "${OWNER_ARGS[@]}" -m 0600 "${SRC_DIR}/config/config.ini.example" "${CONF_DIR}/config.ini"
   fi
-  install "${OWNER_ARGS[@]}" -m 0600 "${EXAMPLE}" "${CONF_DIR}/config.ini"
   echo "   config copiée -> ${CONF_DIR}/config.ini (a editer)"
 else
   echo "   ${CONF_DIR}/config.ini existe deja, conservee"

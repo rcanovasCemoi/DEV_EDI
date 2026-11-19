@@ -1,0 +1,48 @@
+# Template MODE USER pour /opt/EDI (compte babelway) — utilisé par : install.sh --user /opt/EDI
+# Les placeholders __APP_DIR__ sont remplacés par le prefix ; remplacer __FP_*__ et __SHA256_MDP__
+# LOCALEMENT uniquement (ne jamais commiter de vrais secrets dans le depot public).
+
+[general]
+scan_interval_sec = 5
+stability_scans = 2
+max_retries = 5
+archive_retention_days = 7
+state_dir = __APP_DIR__/state
+log_file = __APP_DIR__/log/daemon.log
+local_archive_dir = /opt/EDI/ARCHIVE
+
+[sftp_babelway]
+host = eu1.babelway.net
+port = 22
+user = CEMOI_FR_EDI_TEST
+key_file = /home/babelway/.ssh/id_rsa_babelway_edi
+# ssh-keyscan -t rsa,ecdsa,ed25519 eu1.babelway.net 2>/dev/null | ssh-keygen -lf -
+host_fingerprint = __FP_BABELWAY__
+
+[sftp_keane]
+host = keane.cemoi.fr
+port = 22
+user = cemoi
+key_file = /home/babelway/.ssh/id_rsa_keane
+host_fingerprint = __FP_KEANE__
+
+[flow_babelway_to_keane]
+source = sftp_babelway
+source_dir = /TEST/EDI/OUT
+dest = sftp_keane
+dest_dir = /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW
+dest_tmp_suffix =
+
+[flow_keane_to_babelway]
+source = sftp_keane
+source_dir = /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW
+dest = sftp_babelway
+dest_dir = /TEST/EDI/IN
+dest_tmp_suffix =
+
+[monitoring]
+enabled = true
+bind = 172.25.1.89        # IP LAN ; ou 127.0.0.1 + tunnel SSH
+port = 8443
+auth_user = admin
+auth_password_sha256 = __SHA256_MDP__     # echo -n 'motdepasse' | sha256sum

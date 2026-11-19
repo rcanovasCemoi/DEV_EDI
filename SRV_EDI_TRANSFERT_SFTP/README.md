@@ -199,16 +199,28 @@ dest_dir = /in
 
 ## Installation (serveur Linux cible)
 
-**Mode system (recommandé, nécessite root)** :
+**Mode system (recommandé, nécessite root)** — préfixe par défaut `/opt/edi-sync`, personnalisable avec `--prefix` (l'unité systemd est générée avec ce chemin) :
 
 ```bash
-sudo bash install/install.sh
+sudo bash install/install.sh                          # -> /opt/edi-sync
+sudo bash install/install.sh --prefix /opt/EDI/edi-sync   # -> /opt/EDI/edi-sync
 sudo systemctl enable --now edi-sync
 ```
 
 Crée l'utilisateur système `edisync`, déploie le code dans `/opt/edi-sync/`, la config dans `/etc/edi-sync/` (600, owner edisync) depuis **`config/config.ini.system.example`** (template mode system avec les bons chemins ; remplacer localement les placeholders `__FP_*__` et `__SHA256_MDP__` — ne pas commiter de vrais secrets dans le dépôt public) + `keys/` (700), l'état dans `/var/lib/edi-sync/` et l'unité systemd système.
 
-**Mode user (sans aucun droit root)** — le daemon tourne sous ton compte. Préfixe par défaut `~/edi-sync`, personnalisable (ex. `/opt/EDI/edi-sync`) :
+**Mode user (sans aucun droit root)** — le daemon tourne sous ton compte. Préfixe par défaut `~/edi-sync`, personnalisable. Le template **`config/config.ini.user.example`** est utilisé (chemins relatifs au préfixe, `local_archive_dir=/opt/EDI/ARCHIVE`, clés `~/.ssh`) :
+
+```bash
+# deploiement dans /opt/EDI en tant que babelway (l'admin gere le service/boot) :
+git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI
+# remplir dans /opt/EDI/config.ini uniquement les placeholders __FP_BABELWAY__, __FP_KEANE__, __SHA256_MDP__
+/opt/EDI/venv/bin/python /opt/EDI/edi_sync.py --config /opt/EDI/config.ini --check
+systemctl --user enable --now edi-sync    # (ou le service/boot gere par l'admin)
+```
+
+Autre préfixe (ex. `/opt/EDI/edi-sync`) :
 
 ```bash
 git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
