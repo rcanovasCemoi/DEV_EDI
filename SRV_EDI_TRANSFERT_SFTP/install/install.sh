@@ -64,7 +64,13 @@ python3 -m venv "${APP_DIR}/venv"
 
 echo "==> Configuration"
 if [[ ! -f "${CONF_DIR}/config.ini" ]]; then
-  install "${OWNER_ARGS[@]}" -m 0600 "${SRC_DIR}/config/config.ini.example" "${CONF_DIR}/config.ini"
+  # en mode system, preferer le template system (chemins /etc,/opt,/var) s'il existe
+  if [[ "$MODE" == "system" && -f "${SRC_DIR}/config/config.ini.system.example" ]]; then
+    EXAMPLE="${SRC_DIR}/config/config.ini.system.example"
+  else
+    EXAMPLE="${SRC_DIR}/config/config.ini.example"
+  fi
+  install "${OWNER_ARGS[@]}" -m 0600 "${EXAMPLE}" "${CONF_DIR}/config.ini"
   echo "   config copiée -> ${CONF_DIR}/config.ini (a editer)"
 else
   echo "   ${CONF_DIR}/config.ini existe deja, conservee"

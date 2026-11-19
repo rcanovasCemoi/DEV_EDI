@@ -83,7 +83,8 @@ SRV_EDI_TRANSFERT_SFTP/
 ├── src/
 │   └── edi_sync.py            # daemon (flows + monitoring HTTPS en threads, queue SQLite, paramiko)
 ├── config/
-│   └── config.ini.example     # exemple de configuration
+│   ├── config.ini.example         # exemple generique de configuration
+│   └── config.ini.system.example  # template MODE SYSTEM (srv025-gw-edi) : chemins /etc,/opt,/var, placeholders secrets
 ├── systemd/
 │   ├── edi-sync.service       # unité systemd (mode system, root)
 │   └── edi-sync-user.service  # unité systemd --user (mode sans root, template __APP_DIR__)
@@ -205,7 +206,7 @@ sudo bash install/install.sh
 sudo systemctl enable --now edi-sync
 ```
 
-Crée l'utilisateur système `edisync`, déploie le code dans `/opt/edi-sync/`, la config dans `/etc/edi-sync/` (600, owner edisync) + `keys/` (700), l'état dans `/var/lib/edi-sync/` et l'unité systemd système.
+Crée l'utilisateur système `edisync`, déploie le code dans `/opt/edi-sync/`, la config dans `/etc/edi-sync/` (600, owner edisync) depuis **`config/config.ini.system.example`** (template mode system avec les bons chemins ; remplacer localement les placeholders `__FP_*__` et `__SHA256_MDP__` — ne pas commiter de vrais secrets dans le dépôt public) + `keys/` (700), l'état dans `/var/lib/edi-sync/` et l'unité systemd système.
 
 **Mode user (sans aucun droit root)** — le daemon tourne sous ton compte. Préfixe par défaut `~/edi-sync`, personnalisable (ex. `/opt/EDI/edi-sync`) :
 

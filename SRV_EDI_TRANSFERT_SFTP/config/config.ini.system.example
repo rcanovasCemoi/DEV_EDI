@@ -1,0 +1,50 @@
+# Template de configuration MODE SYSTEM (root) pour srv025-gw-edi.
+# install.sh (mode system) copie ce fichier vers /etc/edi-sync/config.ini.
+# SECURITE : ne PAS commiter les vraies empreintes ni le hash du mot de passe
+# dans un depot public -> remplacer les placeholders __FP_*__ et __SHA256_MDP__ localement.
+
+[general]
+scan_interval_sec = 5
+stability_scans = 2
+max_retries = 5
+archive_retention_days = 7
+state_dir = /var/lib/edi-sync
+log_file = /var/log/edi-sync/daemon.log
+local_archive_dir = /opt/EDI/ARCHIVE
+
+[sftp_babelway]
+host = eu1.babelway.net
+port = 22
+user = CEMOI_FR_EDI_TEST
+key_file = /etc/edi-sync/keys/id_rsa_babelway_edi
+# toutes les empreintes du serveur (RSA+ECDSA+ED25519), virgules :
+#   ssh-keyscan -t rsa,ecdsa,ed25519 eu1.babelway.net 2>/dev/null | ssh-keygen -lf -
+host_fingerprint = __FP_BABELWAY__
+
+[sftp_keane]
+host = keane.cemoi.fr
+port = 22
+user = cemoi
+key_file = /etc/edi-sync/keys/id_rsa_keane
+host_fingerprint = __FP_KEANE__
+
+[flow_babelway_to_keane]
+source = sftp_babelway
+source_dir = /TEST/EDI/OUT
+dest = sftp_keane
+dest_dir = /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW
+dest_tmp_suffix =
+
+[flow_keane_to_babelway]
+source = sftp_keane
+source_dir = /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW
+dest = sftp_babelway
+dest_dir = /TEST/EDI/IN
+dest_tmp_suffix =
+
+[monitoring]
+enabled = true
+bind = 172.25.1.89        # IP LAN du serveur EDI (VLAN interne) ; mettre 127.0.0.1 + tunnel SSH si prefere
+port = 8443
+auth_user = admin
+auth_password_sha256 = __SHA256_MDP__     # echo -n 'motdepasse' | sha256sum
