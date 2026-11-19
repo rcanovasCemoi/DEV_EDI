@@ -46,7 +46,7 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 - Certificat auto-signé généré au premier démarrage dans `<state_dir>/certs/` (ou `tls_cert`/`tls_key` fournis).
 - Basic Auth optionnelle : `auth_user` + `auth_password_sha256`.
 - Endpoints : `GET /` (page HTML auto-refresh 10 s : état des flux, heartbeat, compteurs, derniers événements), `GET /api/status` (JSON), `GET /health` (`200 ok`).
-- Accès distant recommandé par tunnel SSH : `ssh -L 8443:127.0.0.1:8443 utilisateur@serveur-edi` puis `https://localhost:8443/`. Ne jamais binder sur `0.0.0.0`.
+- Accès : par défaut `127.0.0.1` + tunnel SSH (`ssh -L 8443:127.0.0.1:8443 user@serveur-edi` puis `https://localhost:8443/`) ; ou bind sur l'IP LAN du serveur + pare-feu restreint au sous-réseau interne + Basic Auth (jamais `0.0.0.0`).
 - États d'un flux : `ok` (heartbeat récent), `stale` (heartbeat vieux), `error` (au moins un transfert `failed`), `unknown` (pas encore de heartbeat).
 
 ## Sécurité
@@ -55,3 +55,11 @@ Daemon Python unique (`src/edi_sync.py`), déployé comme service systemd `edi-s
 - Config et clés dans `/etc/edi-sync/` : dossier `root:root 755`, mais `config.ini` (600) et `keys/` (700 + clés 600) appartiennent à `edisync`, l'utilisateur du service systemd, afin que le daemon puisse les lire sans les exposer aux autres comptes.
 - Service sandboxé : `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `ReadWritePaths=/var/lib/edi-sync /var/log/edi-sync`.
 - Logs JSON sur stdout → journald (`journalctl -u edi-sync -f`), avec champ `traceback` sur les erreurs ; option `[general] log_file` pour aussi écrire dans un fichier.
+
+## Déploiement & CI
+
+- **Install** : `install.sh` (mode system, root, préfixe `--prefix`, template `config.ini.system.example` → `/etc/edi-sync/config.ini`) ou `install.sh --user [PREFIX] [--cron]` (sans root, template `config.ini.user.example`, unité `systemd --user`, `--cron` = `@reboot` + mini-superviseur `run.sh`). Le mode/préfixe sont enregistrés dans `<prefix>/.deploy-prefix`.
+- **Mise à jour** : `deploy.sh` (détecte mode/préfixe, `git pull`, copie le daemon, réinstalle seulement si `install.sh`/`requirements.txt`/unités changés, restart, checks `--check`/service/`/health`, option `--recette`).
+- **Boot du serveur** : mode system natif, ou `loginctl enable-linger $USER` (root, une fois), ou cron `@reboot` (sans root).
+- **CI** (`.github/workflows/tests-srv-edi-transfert-sftp.yml`, filtre `paths`) : syntaxe, 43 tests unitaires, `--check` sur les templates, **E2E local** `tests/e2e_local.py` (2 serveurs SFTP de test en loopback `tests/sftp_test_server.py` + vrai daemon, ~15 checks ✅).
+- **Recette/E2E en prod** : `tests/recette.py`, `tests/e2e_prod.py` (checks ✅ + bandeau final, exit 0/1).
