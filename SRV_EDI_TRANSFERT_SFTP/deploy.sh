@@ -34,7 +34,11 @@ MODE=""
 if [[ -z "$PREFIX" ]]; then
   if [[ -f "$HOME/.config/systemd/user/edi-sync.service" ]]; then
     MODE=user
-    PREFIX=$(sed 's/^ExecStart=//' "$HOME/.config/systemd/user/edi-sync.service" | awk '{print $2}' | xargs dirname)
+    PREFIX=$(grep '^ExecStart=' "$HOME/.config/systemd/user/edi-sync.service" | sed 's/^ExecStart=//' | awk '{print $2}' | xargs dirname)
+    if [[ -z "$PREFIX" || ! -d "$PREFIX" ]]; then
+      echo "prefix non detecte depuis l'unite user -> passer --prefix /opt/EDI/edi-sync" >&2
+      exit 2
+    fi
   elif [[ -f /opt/edi-sync/edi_sync.py ]]; then
     MODE=system
     PREFIX=/opt/edi-sync
