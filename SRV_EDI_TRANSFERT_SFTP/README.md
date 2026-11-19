@@ -57,7 +57,9 @@ SRV_EDI_TRANSFERT_SFTP/
 │   ├── install.sh             # playbook d'installation (modes system / --user [PREFIX])
 │   └── deploy.sh              # mise a jour apres git pull (pull + copie + restart + checks, +x)
 ├── tests/
-│   └── test_edi_sync.py       # tests unitaires (logique pure + serveur HTTP de monitoring, loopback)
+│   ├── test_edi_sync.py       # tests unitaires (logique pure + serveur HTTP de monitoring, loopback)
+│   ├── recette.py             # recette de fonctionnement (service, monitoring, transfert de test)
+│   └── e2e_prod.py            # test E2E automatique en production, checks ✅ et bandeau final (+x)
 └── docs/
     ├── architecture.md        # décisions d'architecture détaillées
     └── monitoring-ui.png      # capture de la page de monitoring (données de démo)
@@ -86,6 +88,15 @@ Les tests unitaires couvrent la logique pure (config, queue SQLite, stabilité, 
 ```
 
 > Le dépôt du fichier test se fait dans `source_dir`. Si le compte SFTP est en read-only sur ce répertoire (ex. `/TEST/EDI/OUT` sur babelway), lancer la recette sur l'autre flow (ex. `flow_keane_to_babelway`, `SORTIE/BW` est writable) ou demander à la plateforme de déposer un fichier test.
+
+## Test E2E automatique en production (checks ✅)
+
+```bash
+/opt/EDI/edi-sync/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/e2e_prod.py \
+    --config /opt/EDI/edi-sync/config.ini --monitoring-password 'MOTDEPASSE'
+```
+
+Vérifie config, service, monitoring (`/health`, `/api/status`, heartbeats), puis fait un **vrai transfert de test** (`TEST_E2E_<ts>.edi`) par flow : dépôt source → livraison destination → suppression source → archive locale. Affiche ✅ par check et un bandeau final `✅ E2E VALIDE — n/n checks OK` (exit 0) ou `❌ E2E EN ECHEC` (exit 1). Un flow en read-only côté source est SKIP (⏭️).
 
 ## Configuration
 
