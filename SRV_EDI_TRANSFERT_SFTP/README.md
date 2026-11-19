@@ -23,6 +23,8 @@ bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-syn
 # 4. verifier puis demarrer
 /opt/EDI/edi-sync/venv/bin/python /opt/EDI/edi-sync/edi_sync.py --config /opt/EDI/edi-sync/config.ini --check
 systemctl --user enable --now edi-sync        # ou: sudo systemctl enable --now edi-sync
+# pour que le service demarre aussi au REBOOT du serveur sans session ouverte (une fois, root) :
+#   sudo loginctl enable-linger $USER        # verif: loginctl show-user $USER | grep Linger -> yes
 
 # 5. superviser
 systemctl --user status edi-sync
@@ -298,7 +300,7 @@ Aperçu de la page (données de démo servies par le serveur HTTPS réel en loca
 - **Fichier reçu en `.nom.tmp` côté plateforme** : la plateforme destination prend le `.tmp` avant le rename → mettre `dest_tmp_suffix =` (vide) dans le flow concerné = upload direct au nom final.
 - **`empreinte du serveur ... invalide`** : le serveur a plusieurs clés d'hôte (RSA/ECDSA/ED25519) et paramiko en choisit une autre → lister toutes les empreintes : `ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -` et les mettre toutes dans `host_fingerprint` (séparées par des virgules).
 - **`journalctl --user` : permission denied** → demander à l'admin root `usermod -aG systemd-journal $USER` (reconnexion), ou renseigner `log_file` dans `[general]` et lire ce fichier.
-- **Service user inactif sans session ouverte** → demander à l'admin root `loginctl enable-linger $USER`.
+- **Service user inactif sans session ouverte / ne démarre pas au reboot du serveur** → demander à l'admin root, une fois pour toutes : `sudo loginctl enable-linger $USER` (vérif : `loginctl show-user $USER | grep Linger` → `Linger=yes`). Le service démarrera alors automatiquement à chaque boot, sans session ouverte.
 - **`config invalide: File contains no section headers`** → le heredoc de la config n'a pas été rempli correctement (vérifier `cat config.ini`).
 - **`Address already in use` sur le port monitoring** → un autre process edi-sync tourne encore (`pkill -f edi_sync.py`, attendre la fin du restart).
 - **Port 8443 inaccessible depuis mon poste mais OK en local** (`Test-NetConnection` False, ping OK) → ACL inter-VLAN : le port 8443 n'est pas ouvert entre le VLAN des postes et celui du serveur. Solutions : (a) demander à l'admin réseau d'ouvrir TCP/8443 poste→serveur, puis accéder directement à `https://<IP-serveur>:8443/` ; (b) sinon, tunnel SSH par utilisateur (le port 22 passe déjà) : `ssh -L 8443:<IP-serveur>:8443 utilisateur@serveur-edi` puis `https://localhost:8443/`.
