@@ -11,17 +11,17 @@ Daemon Linux, lancé en tant que **service systemd**, qui transfère en **temps 
 # 1. cloner le depot
 git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
 
-# 2. installer (mode user sans root ; prefix ~/edi-sync par defaut, ex. /opt/EDI/edi-sync)
-bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-sync
+# 2. installer (mode user sans root ; prefix ~/edi-sync par defaut, ex. /opt/EDI)
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI
 #    (mode system avec root : sudo bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh)
 
-# 3. configurer /opt/EDI/edi-sync/config.ini (voir config/config.ini.example) :
+# 3. configurer /opt/EDI/config.ini (voir config/config.ini.example) :
 #    [sftp_*] host/port/user/key_file/host_fingerprint, [flow_*] source/dest dirs,
 #    [general] local_archive_dir, [monitoring] bind/port/auth
 #    empreintes : ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -
 
 # 4. verifier puis demarrer
-/opt/EDI/edi-sync/venv/bin/python /opt/EDI/edi-sync/edi_sync.py --config /opt/EDI/edi-sync/config.ini --check
+/opt/EDI/venv/bin/python /opt/EDI/edi_sync.py --config /opt/EDI/config.ini --check
 systemctl --user enable --now edi-sync        # ou: sudo systemctl enable --now edi-sync
 # pour que le service demarre aussi au REBOOT du serveur sans session ouverte (une fois, root) :
 #   sudo loginctl enable-linger $USER        # verif: loginctl show-user $USER | grep Linger -> yes
@@ -32,8 +32,8 @@ curl -k -u admin:MOTDEPASSE https://127.0.0.1:8443/api/status   # depuis le serv
 # depuis ton poste : ssh -L 8443:127.0.0.1:8443 user@serveur-edi  puis https://localhost:8443/
 
 # 6. tester
-/opt/EDI/edi-sync/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/e2e_prod.py \
-    --config /opt/EDI/edi-sync/config.ini --monitoring-password 'MOTDEPASSE'
+/opt/EDI/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/e2e_prod.py \
+    --config /opt/EDI/config.ini --monitoring-password 'MOTDEPASSE'
 
 # 7. mettre a jour plus tard
 cd ~/DEV_EDI && bash SRV_EDI_TRANSFERT_SFTP/deploy.sh
@@ -42,12 +42,17 @@ cd ~/DEV_EDI && bash SRV_EDI_TRANSFERT_SFTP/deploy.sh
 ## Architecture
 
 ```
-┌──────────────────┐  flow_babelway_to_keane   ┌──────────────────┐
-│  sftp_babelway   │ ─────────────────────────► │    sftp_keane    │
-│  /TEST/EDI/OUT   │  OUT ──► ENTREE/BW        │  .../ENTREE/BW   │
-│  /TEST/EDI/IN    │ ◄───────────────────────── │  .../SORTIE/BW   │
-└──────────────────┘  flow_keane_to_babelway   └──────────────────┘
-        (daemon edi-sync sur le serveur EDI, /opt/EDI/edi-sync)
+┌─────────────────────────────────────┐                                        ┌─────────────────────────────────────┐
+│            sftp_babelway            │   flow_babelway_to_keane   ───────────────►   │              sftp_keane             │
+│           eu1.babelway.net          │                                        │            keane.cemoi.fr           │
+│          OUT: /TEST/EDI/OUT         │   flow_keane_to_babelway   ◄───────────────   │              ENTREE/BW              │
+│                                     │                                        │              SORTIE/BW              │
+│          IN : /TEST/EDI/IN          │                                        │  (sous /opt/ASPEDI_FR/PRODUCTION/)  │
+└─────────────────────────────────────┘                                        └─────────────────────────────────────┘
+        /TEST/EDI/OUT  ──►  /opt/ASPEDI_FR/PRODUCTION/ENTREE/BW
+        /opt/ASPEDI_FR/PRODUCTION/SORTIE/BW  ──►  /TEST/EDI/IN
+
+     daemon edi-sync sur srv025-gw-edi (/opt/EDI) — monitoring https://172.25.1.89:8443/
 ```
 
 Le daemon tourne sur un serveur Linux intermédiaire et gère **un thread par flux** (connexions SFTP dédiées par flux) :
@@ -119,8 +124,8 @@ Les tests unitaires couvrent la logique pure (config, queue SQLite, stabilité, 
 `tests/recette.py` vérifie le service actif, le monitoring (`/health`, `/api/status`, heartbeats) et fait un **vrai transfert de test** (`TEST_EDI_SYNC_<ts>.edi`) par flow : dépôt source → livraison destination → suppression source → archive locale.
 
 ```bash
-/opt/EDI/edi-sync/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/recette.py \
-    --config /opt/EDI/edi-sync/config.ini --monitoring-password 'MOTDEPASSE'
+/opt/EDI/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/recette.py \
+    --config /opt/EDI/config.ini --monitoring-password 'MOTDEPASSE'
 # un seul flow :
 ... --flow flow_keane_to_babelway
 ```
@@ -130,8 +135,8 @@ Les tests unitaires couvrent la logique pure (config, queue SQLite, stabilité, 
 ## Test E2E automatique en production (checks ✅)
 
 ```bash
-/opt/EDI/edi-sync/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/e2e_prod.py \
-    --config /opt/EDI/edi-sync/config.ini --monitoring-password 'MOTDEPASSE'
+/opt/EDI/venv/bin/python ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/tests/e2e_prod.py \
+    --config /opt/EDI/config.ini --monitoring-password 'MOTDEPASSE'
 ```
 
 Vérifie config, service, monitoring (`/health`, `/api/status`, heartbeats), puis fait un **vrai transfert de test** (`TEST_E2E_<ts>.edi`) par flow : dépôt source → livraison destination → suppression source → archive locale. Affiche ✅ par check et un bandeau final `✅ E2E VALIDE — n/n checks OK` (exit 0) ou `❌ E2E EN ECHEC` (exit 1). Un flow en read-only côté source est SKIP (⏭️).
@@ -203,7 +208,7 @@ dest_dir = /in
 
 ```bash
 sudo bash install/install.sh                          # -> /opt/edi-sync
-sudo bash install/install.sh --prefix /opt/EDI/edi-sync   # -> /opt/EDI/edi-sync
+sudo bash install/install.sh --prefix /opt/EDI   # -> /opt/EDI
 sudo systemctl enable --now edi-sync
 ```
 
@@ -220,16 +225,16 @@ bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI
 systemctl --user enable --now edi-sync    # (ou le service/boot gere par l'admin)
 ```
 
-Autre préfixe (ex. `/opt/EDI/edi-sync`) :
+Autre préfixe (ex. `/opt/EDI`) :
 
 ```bash
 git clone https://github.com/rcanovasCemoi/DEV_EDI.git ~/DEV_EDI
-bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-sync
-# éditer /opt/EDI/edi-sync/config.ini : key_file pointent directement vers ~/.ssh/id_rsa_* (pas de copie)
-/opt/EDI/edi-sync/venv/bin/python /opt/EDI/edi-sync/edi_sync.py --config /opt/EDI/edi-sync/config.ini --check
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI
+# éditer /opt/EDI/config.ini : key_file pointent directement vers ~/.ssh/id_rsa_* (pas de copie)
+/opt/EDI/venv/bin/python /opt/EDI/edi_sync.py --config /opt/EDI/config.ini --check
 systemctl --user enable --now edi-sync
 systemctl --user status edi-sync
-journalctl --user -u edi-sync -f    # ou: tail -f /opt/EDI/edi-sync/log/daemon.log si log_file renseigné
+journalctl --user -u edi-sync -f    # ou: tail -f /opt/EDI/log/daemon.log si log_file renseigné
 ```
 
 > Pour que le service user démarre aussi sans session ouverte, demander à l'admin root une seule fois : `loginctl enable-linger $USER` (sinon le service démarre à ta première connexion).
@@ -244,8 +249,8 @@ journalctl --user -u edi-sync -f    # ou: tail -f /opt/EDI/edi-sync/log/daemon.l
 
 ```bash
 # option cron (sans root) :
-bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI/edi-sync --cron
-crontab -l | grep run.sh        # verif: @reboot /opt/EDI/edi-sync/run.sh
+bash ~/DEV_EDI/SRV_EDI_TRANSFERT_SFTP/install/install.sh --user /opt/EDI --cron
+crontab -l | grep run.sh        # verif: @reboot /opt/EDI/run.sh
 ```
 
 ## Mise à jour après un `git pull`
