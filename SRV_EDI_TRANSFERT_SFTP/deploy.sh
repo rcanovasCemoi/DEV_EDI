@@ -97,7 +97,13 @@ if [[ "$RESTART" -eq 1 ]]; then
   echo "==> sonde monitoring (best-effort)"
   BIND=$(sed -n 's/^bind *= *//p' "$PREFIX/config.ini" | head -1); BIND="${BIND:-127.0.0.1}"
   PORT=$(sed -n 's/^port *= *//p' "$PREFIX/config.ini" | head -1); PORT="${PORT:-8443}"
-  curl -sk -o /dev/null -w "GET /health -> HTTP %{http_code}\n" "https://$BIND:$PORT/health" || true
+  code="000"
+  for _ in $(seq 1 10); do
+    code=$(curl -sk -o /dev/null -w "%{http_code}" "https://$BIND:$PORT/health" || true)
+    [[ "$code" != "000" && -n "$code" ]] && break
+    sleep 1
+  done
+  echo "GET /health -> HTTP $code (200/401 = monitoring vivant)"
 fi
 
 if [[ "$RECETTE" -eq 1 ]]; then
